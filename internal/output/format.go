@@ -79,7 +79,9 @@ func FormatArticles(w io.Writer, articles []eutils.Article, asJSON bool) error {
 		if a.Pages != "" {
 			citation += ":" + a.Pages
 		}
-		citation += " (" + a.Year + ")"
+		if a.Year != "" {
+			citation += " (" + a.Year + ")"
+		}
 		fmt.Fprintf(w, "Journal: %s\n", citation)
 
 		// DOI

@@ -172,6 +172,36 @@ func TestFormatArticleHuman(t *testing.T) {
 	}
 }
 
+func TestFormatArticleEmptyYear(t *testing.T) {
+	articles := []eutils.Article{
+		{
+			PMID:    "99999",
+			Title:   "Article with no year",
+			Journal: "Some Journal",
+			Year:    "", // empty year
+			Volume:  "10",
+			PublicationTypes: []string{"Journal Article"},
+			Language:         "eng",
+		},
+	}
+
+	var buf bytes.Buffer
+	err := FormatArticles(&buf, articles, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := buf.String()
+	// Should NOT contain "()" from empty year
+	if strings.Contains(out, "()") {
+		t.Errorf("output should not contain '()' when year is empty, got:\n%s", out)
+	}
+	// Should still contain the journal name
+	if !strings.Contains(out, "Some Journal") {
+		t.Error("expected output to contain journal name")
+	}
+}
+
 func TestFormatArticleEmpty(t *testing.T) {
 	var buf bytes.Buffer
 	err := FormatArticles(&buf, []eutils.Article{}, false)
