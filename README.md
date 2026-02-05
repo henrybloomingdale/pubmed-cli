@@ -1,38 +1,61 @@
-# pubmed-cli
+<p align="center">
+  <h1 align="center">🔬 pubmed-cli</h1>
+  <p align="center">
+    <strong>PubMed from your terminal. Built for humans and AI agents.</strong>
+  </p>
+  <p align="center">
+    <a href="https://github.com/henrybloomingdale/pubmed-cli/actions"><img src="https://img.shields.io/github/actions/workflow/status/henrybloomingdale/pubmed-cli/ci.yml?branch=main&style=flat-square&label=tests" alt="CI"></a>
+    <a href="https://goreportcard.com/report/github.com/henrybloomingdale/pubmed-cli"><img src="https://goreportcard.com/badge/github.com/henrybloomingdale/pubmed-cli?style=flat-square" alt="Go Report Card"></a>
+    <img src="https://img.shields.io/badge/go-1.25-00ADD8?style=flat-square&logo=go" alt="Go 1.25">
+    <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
+  </p>
+</p>
 
-A command-line interface for NCBI PubMed E-utilities. Search PubMed, fetch article details, explore citations, and look up MeSH terms — all from your terminal.
+---
 
-## Installation
+Search PubMed, fetch abstracts, traverse citation networks, and look up MeSH terms -- all from the command line. Outputs structured JSON for piping into scripts, dashboards, or LLM tool-use loops.
+
+**Why this exists:** Standard RAG retrieves what's *similar*. Agentic tool use retrieves what's *relevant*. This CLI gives any LLM agent direct, composable access to the 37M+ articles in PubMed via NCBI E-utilities -- no vector database, no embedding model, no retrieval corpus to maintain.
+
+## ✨ Features
+
+- **6 commands** -- `search`, `fetch`, `cited-by`, `references`, `related`, `mesh`
+- **Dual output** -- `--json` for machines, `--human` for rich terminal display
+- **Rate-limited** -- respects NCBI guidelines (3 req/s default, 10 with API key)
+- **Zero dependencies** -- single static binary, ~5ms startup
+- **Pipe-friendly** -- compose with `jq`, `xargs`, or any scripting language
+- **Agent-ready** -- designed as a tool for LLM function calling / agentic workflows
+
+## 📦 Installation
 
 ```bash
+# Go install
 go install github.com/henrybloomingdale/pubmed-cli/cmd/pubmed@latest
-```
 
-Or build from source:
-
-```bash
+# Or build from source
 git clone https://github.com/henrybloomingdale/pubmed-cli.git
 cd pubmed-cli
 make build
 ```
 
-## Configuration
+## ⚙️ Configuration
 
 ### NCBI API Key (recommended)
 
-Without an API key, NCBI limits you to 3 requests/second. With one, you get 10 req/sec.
-
-Get a free key at: https://www.ncbi.nlm.nih.gov/account/settings/
+Without a key you're limited to 3 requests/second. With one, you get 10. Free at [ncbi.nlm.nih.gov/account/settings](https://www.ncbi.nlm.nih.gov/account/settings/).
 
 ```bash
-# Set as environment variable
+# Environment variable (preferred)
 export NCBI_API_KEY="your-key-here"
 
-# Or pass per-command
-pubmed search --api-key "your-key-here" "fragile x syndrome"
+# Or .env file in working directory
+echo 'NCBI_API_KEY=your-key-here' > .env
+
+# Or per-command
+pubmed search --api-key "your-key" "fragile x syndrome"
 ```
 
-## Usage
+## 🚀 Usage
 
 ### Search
 
@@ -40,153 +63,130 @@ pubmed search --api-key "your-key-here" "fragile x syndrome"
 # Basic search
 pubmed search "fragile x syndrome"
 
-# MeSH term search with date filter
+# MeSH + date filter
 pubmed search '"fragile x syndrome"[MeSH] AND "electroencephalography"[MeSH]' --year 2020-2025
 
-# Search with filters
+# Filters and sorting
 pubmed search "ADHD treatment" --type review --limit 10 --sort date
 
-# JSON output (pipe-friendly)
+# JSON for scripting
 pubmed search "autism biomarkers" --json | jq '.ids[]'
+
+# Rich terminal output
+pubmed search "CRISPR therapy" --human
 ```
 
-### Fetch Article Details
+### Fetch
 
 ```bash
-# Single article
+# Single article (full abstract, authors, MeSH, DOI)
 pubmed fetch 38123456
 
 # Multiple articles
 pubmed fetch 38123456 37987654 37876543
 
-# JSON output with full details
-pubmed fetch 38123456 --json
+# JSON with jq
+pubmed fetch 38123456 --json | jq '{title: .title, doi: .doi}'
 ```
 
-### Citations
+### Citation Network
 
 ```bash
-# Papers that cite this article
+# Who cited this paper?
 pubmed cited-by 38123456
 
-# References in this article
+# What does this paper cite?
 pubmed references 38123456
 
-# Similar articles (with relevance scores)
+# Similar articles (NCBI relevance scores)
 pubmed related 38123456
 ```
 
-### MeSH Term Lookup
+### MeSH Terms
 
 ```bash
-# Look up a MeSH term
+# Look up a MeSH descriptor
 pubmed mesh "Fragile X Syndrome"
 
 # JSON output
 pubmed mesh "Electroencephalography" --json
 ```
 
-## Global Flags
+## 🤖 Agent Tool Use
+
+The CLI is designed to be called by LLM agents via function calling. Define tools that map to commands:
+
+```python
+tools = [
+    {"name": "pubmed_search",  "exec": "pubmed --json search {query}"},
+    {"name": "pubmed_fetch",   "exec": "pubmed --json fetch {pmid}"},
+    {"name": "pubmed_cited_by","exec": "pubmed --json cited-by {pmid}"},
+    # ...
+]
+```
+
+An agent can then autonomously:
+1. **Search** -- formulate and refine PubMed queries
+2. **Fetch** -- read abstracts for relevant hits
+3. **Traverse** -- follow citation networks to find seminal or recent work
+4. **Synthesize** -- answer questions grounded in real literature
+
+This approach outperforms standard RAG on biomedical QA benchmarks. See our [MIRAGE evaluation](docs/benchmark.md) (coming soon).
+
+## 📋 Reference
 
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--json` | Structured JSON output | `false` |
-| `--limit N` | Maximum results | `20` |
-| `--sort` | Sort: `relevance`, `date`, `cited` | `relevance` |
-| `--year` | Year range filter (e.g., `2020-2025`) | — |
-| `--type` | Publication type: `review`, `trial`, `meta-analysis` | — |
-| `--api-key` | NCBI API key (or `NCBI_API_KEY` env var) | — |
+| `--human` | Rich terminal display | `false` |
+| `--csv` | CSV export | `false` |
+| `--limit N` | Max results | `20` |
+| `--sort` | `relevance` \| `date` \| `cited` | `relevance` |
+| `--year` | Year range (e.g. `2020-2025`) | -- |
+| `--type` | `review` \| `trial` \| `meta-analysis` | -- |
+| `--api-key` | NCBI API key | `$NCBI_API_KEY` |
 
-## Examples
-
-### Research Workflow
-
-```bash
-# 1. Find recent reviews on a topic
-pubmed search "fragile x syndrome EEG biomarkers" --type review --year 2020-2025 --json
-
-# 2. Get full details for interesting papers
-pubmed fetch 38123456 --json | jq '{title: .title, doi: .doi, authors: [.authors[].full_name]}'
-
-# 3. Explore citation network
-pubmed cited-by 38123456 --json | jq '.links[].id'
-
-# 4. Find related work
-pubmed related 38123456 --limit 5
-
-# 5. Look up MeSH terms for better searches
-pubmed mesh "Electroencephalography"
-```
-
-### Piping and Scripting
-
-```bash
-# Search → Fetch pipeline
-pubmed search "CRISPR therapy" --json | jq -r '.ids[:5][]' | xargs pubmed fetch --json
-
-# Export citations
-pubmed fetch 38123456 37987654 --json > papers.json
-```
-
-## Development
-
-### Prerequisites
-
-- Go 1.21+
-- Make
-
-### Build & Test
-
-```bash
-# Build
-make build
-
-# Run unit tests
-make test
-
-# Run integration tests (hits real NCBI API)
-NCBI_API_KEY="your-key" make test-integration
-
-# Lint
-make lint
-
-# Test coverage
-make coverage
-```
-
-### Project Structure
+## 🏗️ Architecture
 
 ```
 pubmed-cli/
-├── cmd/pubmed/          # CLI entry point
+├── cmd/pubmed/          # Cobra CLI entry point
 ├── internal/
-│   ├── eutils/          # E-utilities HTTP client
-│   │   ├── client.go    # Rate-limited HTTP client
+│   ├── eutils/          # NCBI E-utilities client
+│   │   ├── client.go    # Rate-limited HTTP transport
 │   │   ├── search.go    # ESearch
-│   │   ├── fetch.go     # EFetch (XML parsing)
-│   │   ├── link.go      # ELink (citations, references, related)
-│   │   └── types.go     # Shared types
-│   ├── mesh/            # MeSH term lookup
-│   └── output/          # JSON and human-readable formatting
-├── testdata/            # Fixture files for unit tests
+│   │   ├── fetch.go     # EFetch + XML parsing
+│   │   ├── link.go      # ELink (citations, related)
+│   │   └── types.go     # Domain types
+│   ├── mesh/            # MeSH descriptor lookup
+│   └── output/          # JSON / human / CSV formatters
+├── testdata/            # Canned NCBI responses for unit tests
 ├── Makefile
-└── README.md
+└── go.mod
 ```
 
-### Test Strategy
+## 🧪 Development
 
-- **Unit tests** use `net/http/httptest` with canned NCBI responses in `testdata/`
-- **Integration tests** (`//go:build integration`) hit the real NCBI API
-- TDD approach: tests written before implementation
+```bash
+make build           # Build binary
+make test            # Unit tests (26 tests, offline)
+make test-integration # Integration tests (real NCBI API)
+make lint            # golangci-lint
+make coverage        # Coverage report
+```
 
-## License
+Tests use `net/http/httptest` with fixture responses in `testdata/`. TDD throughout.
+
+## 📄 License
 
 MIT
 
-## NCBI E-utilities
+## 🙏 Acknowledgments
 
-This tool uses the [NCBI E-utilities API](https://www.ncbi.nlm.nih.gov/books/NBK25501/). Please respect their [usage guidelines](https://www.ncbi.nlm.nih.gov/books/NBK25497/):
+Built on the [NCBI E-utilities API](https://www.ncbi.nlm.nih.gov/books/NBK25501/). Please respect their [usage guidelines](https://www.ncbi.nlm.nih.gov/books/NBK25497/).
 
-- Include tool name and email in requests (handled automatically)
-- Max 3 requests/second without API key, 10 with key
-- Do not make concurrent requests from a single IP
+---
+
+<p align="center">
+  <sub>Made with 🧬 for biomedical research</sub>
+</p>
