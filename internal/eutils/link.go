@@ -20,24 +20,61 @@ type elinkResponse struct {
 }
 
 type elinkLinkSet struct {
-	DbFrom     string          `json:"dbfrom"`
-	IDs        []elinkID       `json:"ids"`
+	DbFrom     string           `json:"dbfrom"`
+	IDs        []string         `json:"ids"`
 	LinkSetDBs []elinkLinkSetDB `json:"linksetdbs"`
 }
 
-type elinkID struct {
-	Value string `json:"value"`
-}
-
 type elinkLinkSetDB struct {
-	DbTo     string      `json:"dbto"`
-	LinkName string      `json:"linkname"`
-	Links    []elinkLink `json:"links"`
+	DbTo     string          `json:"dbto"`
+	LinkName string          `json:"linkname"`
+	Links    []elinkLink     `json:"links"`
 }
 
+// elinkLink handles both plain string IDs and {id, score} objects.
+// NCBI returns plain strings for cited-by/refs and objects with scores for related.
 type elinkLink struct {
-	ID    string `json:"id"`
-	Score string `json:"score,omitempty"`
+	id    string
+	score string
+}
+
+func (e *elinkLink) UnmarshalJSON(data []byte) error {
+	// Try plain string first (cited-by, refs)
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		e.id = s
+		return nil
+	}
+	// Try object with id/score (related with neighbor_score)
+	// Score can be string or number depending on NCBI endpoint
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return fmt.Errorf("cannot parse elink link: %s", string(data))
+	}
+	if raw, ok := obj["id"]; ok {
+		var id string
+		if err := json.Unmarshal(raw, &id); err != nil {
+			// Try as number
+			var num int
+			if err2 := json.Unmarshal(raw, &num); err2 != nil {
+				return fmt.Errorf("cannot parse elink link id: %s", string(raw))
+			}
+			id = strconv.Itoa(num)
+		}
+		e.id = id
+	}
+	if raw, ok := obj["score"]; ok {
+		var scoreStr string
+		if err := json.Unmarshal(raw, &scoreStr); err != nil {
+			// Try as number
+			var num int
+			if err2 := json.Unmarshal(raw, &num); err2 == nil {
+				scoreStr = strconv.Itoa(num)
+			}
+		}
+		e.score = scoreStr
+	}
+	return nil
 }
 
 // CitedBy returns papers that cite the given PMID.
@@ -91,10 +128,10 @@ func (c *Client) link(ctx context.Context, pmid, linkName string, withScores boo
 			}
 			for _, link := range lsdb.Links {
 				item := LinkItem{
-					ID: link.ID,
+					ID: link.id,
 				}
-				if link.Score != "" {
-					item.Score, _ = strconv.Atoi(link.Score)
+				if link.score != "" {
+					item.Score, _ = strconv.Atoi(link.score)
 				}
 				result.Links = append(result.Links, item)
 			}

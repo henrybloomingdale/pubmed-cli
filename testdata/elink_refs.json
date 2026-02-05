@@ -7,24 +7,16 @@
         {
             "dbfrom": "pubmed",
             "ids": [
-                {
-                    "value": "38123456"
-                }
+                "38123456"
             ],
             "linksetdbs": [
                 {
                     "dbto": "pubmed",
                     "linkname": "pubmed_pubmed_refs",
                     "links": [
-                        {
-                            "id": "37000001"
-                        },
-                        {
-                            "id": "36000002"
-                        },
-                        {
-                            "id": "35000003"
-                        }
+                        "37000001",
+                        "36000002",
+                        "35000003"
                     ]
                 }
             ]
