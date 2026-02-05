@@ -119,6 +119,53 @@ func TestLink_EmptyResults(t *testing.T) {
 	}
 }
 
+func TestLink_MultipleLinkSetDBs_FiltersByLinkname(t *testing.T) {
+	fixture := loadTestdata(t, "elink_multiple_linksetdbs.json")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(fixture)
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL), WithAPIKey("test"))
+
+	// CitedBy should return only the pubmed_pubmed_citedin links
+	result, err := c.CitedBy(context.Background(), "38123456")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Links) != 2 {
+		t.Errorf("expected 2 cited-by links (filtered by linkname), got %d", len(result.Links))
+	}
+	if len(result.Links) >= 1 && result.Links[0].ID != "99000002" {
+		t.Errorf("expected first cited-by link '99000002', got %q", result.Links[0].ID)
+	}
+
+	// References should return only the pubmed_pubmed_refs links
+	result, err = c.References(context.Background(), "38123456")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Links) != 1 {
+		t.Errorf("expected 1 reference link (filtered by linkname), got %d", len(result.Links))
+	}
+	if len(result.Links) >= 1 && result.Links[0].ID != "99000004" {
+		t.Errorf("expected reference link '99000004', got %q", result.Links[0].ID)
+	}
+
+	// Related should return only the pubmed_pubmed links
+	result, err = c.Related(context.Background(), "38123456")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Links) != 1 {
+		t.Errorf("expected 1 related link (filtered by linkname), got %d", len(result.Links))
+	}
+	if len(result.Links) >= 1 && result.Links[0].ID != "99000001" {
+		t.Errorf("expected related link '99000001', got %q", result.Links[0].ID)
+	}
+}
+
 func TestLink_EmptyPMID(t *testing.T) {
 	c := NewClient(WithAPIKey("test"))
 

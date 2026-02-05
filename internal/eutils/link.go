@@ -84,15 +84,20 @@ func (c *Client) link(ctx context.Context, pmid, linkName string, withScores boo
 		SourceID: pmid,
 	}
 
-	if len(resp.LinkSets) > 0 && len(resp.LinkSets[0].LinkSetDBs) > 0 {
-		for _, link := range resp.LinkSets[0].LinkSetDBs[0].Links {
-			item := LinkItem{
-				ID: link.ID,
+	if len(resp.LinkSets) > 0 {
+		for _, lsdb := range resp.LinkSets[0].LinkSetDBs {
+			if lsdb.LinkName != linkName {
+				continue
 			}
-			if link.Score != "" {
-				item.Score, _ = strconv.Atoi(link.Score)
+			for _, link := range lsdb.Links {
+				item := LinkItem{
+					ID: link.ID,
+				}
+				if link.Score != "" {
+					item.Score, _ = strconv.Atoi(link.Score)
+				}
+				result.Links = append(result.Links, item)
 			}
-			result.Links = append(result.Links, item)
 		}
 	}
 
