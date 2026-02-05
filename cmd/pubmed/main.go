@@ -2,13 +2,13 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/henrybloomingdale/pubmed-cli/internal/eutils"
 	"github.com/henrybloomingdale/pubmed-cli/internal/mesh"
+	"github.com/henrybloomingdale/pubmed-cli/internal/ncbi"
 	"github.com/henrybloomingdale/pubmed-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -50,43 +50,42 @@ func init() {
 	rootCmd.AddCommand(meshCmd)
 }
 
-func newEutilsClient() *eutils.Client {
+func newBaseClient() *ncbi.BaseClient {
 	apiKey := flagAPIKey
 	if apiKey == "" {
 		apiKey = os.Getenv("NCBI_API_KEY")
 	}
-
-	opts := []eutils.Option{}
+	var opts []ncbi.Option
 	if apiKey != "" {
-		opts = append(opts, eutils.WithAPIKey(apiKey))
+		opts = append(opts, ncbi.WithAPIKey(apiKey))
 	}
-	return eutils.NewClient(opts...)
+	return ncbi.NewBaseClient(opts...)
+}
+
+func newEutilsClient() *eutils.Client {
+	return eutils.NewClientWithBase(newBaseClient())
 }
 
 func newMeshClient() *mesh.Client {
-	apiKey := flagAPIKey
-	if apiKey == "" {
-		apiKey = os.Getenv("NCBI_API_KEY")
-	}
-	return mesh.NewClient(eutils.DefaultBaseURL, apiKey, eutils.DefaultTool, eutils.DefaultEmail)
+	return mesh.NewClient(newBaseClient())
 }
 
 func buildQuery(args []string) string {
 	query := strings.Join(args, " ")
 
-	// Add publication type filter
+	// Add publication type filter — multi-word types must be quoted.
 	if flagType != "" {
 		typeMap := map[string]string{
-			"review":          "review[pt]",
-			"trial":           "clinical trial[pt]",
-			"meta-analysis":   "meta-analysis[pt]",
-			"randomized":      "randomized controlled trial[pt]",
-			"case-report":     "case reports[pt]",
+			"review":        `"review"[pt]`,
+			"trial":         `"clinical trial"[pt]`,
+			"meta-analysis": `"meta-analysis"[pt]`,
+			"randomized":    `"randomized controlled trial"[pt]`,
+			"case-report":   `"case reports"[pt]`,
 		}
 		if mapped, ok := typeMap[strings.ToLower(flagType)]; ok {
 			query += " AND " + mapped
 		} else {
-			query += " AND " + flagType + "[pt]"
+			query += fmt.Sprintf(` AND "%s"[pt]`, flagType)
 		}
 	}
 
@@ -126,7 +125,7 @@ var searchCmd = &cobra.Command{
 			}
 		}
 
-		result, err := client.Search(context.Background(), query, opts)
+		result, err := client.Search(cmd.Context(), query, opts)
 		if err != nil {
 			return fmt.Errorf("search failed: %w", err)
 		}
@@ -144,7 +143,7 @@ var fetchCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := newEutilsClient()
 
-		articles, err := client.Fetch(context.Background(), args)
+		articles, err := client.Fetch(cmd.Context(), args)
 		if err != nil {
 			return fmt.Errorf("fetch failed: %w", err)
 		}
@@ -162,7 +161,7 @@ var citedByCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := newEutilsClient()
 
-		result, err := client.CitedBy(context.Background(), args[0])
+		result, err := client.CitedBy(cmd.Context(), args[0])
 		if err != nil {
 			return fmt.Errorf("cited-by lookup failed: %w", err)
 		}
@@ -180,7 +179,7 @@ var referencesCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := newEutilsClient()
 
-		result, err := client.References(context.Background(), args[0])
+		result, err := client.References(cmd.Context(), args[0])
 		if err != nil {
 			return fmt.Errorf("references lookup failed: %w", err)
 		}
@@ -198,7 +197,7 @@ var relatedCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := newEutilsClient()
 
-		result, err := client.Related(context.Background(), args[0])
+		result, err := client.Related(cmd.Context(), args[0])
 		if err != nil {
 			return fmt.Errorf("related articles lookup failed: %w", err)
 		}
@@ -217,7 +216,7 @@ var meshCmd = &cobra.Command{
 		client := newMeshClient()
 		term := strings.Join(args, " ")
 
-		record, err := client.Lookup(context.Background(), term)
+		record, err := client.Lookup(cmd.Context(), term)
 		if err != nil {
 			return fmt.Errorf("MeSH lookup failed: %w", err)
 		}

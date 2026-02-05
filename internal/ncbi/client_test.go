@@ -1,21 +1,19 @@
-package eutils
+package ncbi
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/henrybloomingdale/pubmed-cli/internal/ncbi"
 )
 
-func TestNewClient_Defaults(t *testing.T) {
-	c := NewClient()
+func TestNewBaseClient_Defaults(t *testing.T) {
+	c := NewBaseClient()
 	if c.BaseURL != DefaultBaseURL {
 		t.Errorf("expected base URL %q, got %q", DefaultBaseURL, c.BaseURL)
 	}
@@ -25,14 +23,21 @@ func TestNewClient_Defaults(t *testing.T) {
 	if c.Email != DefaultEmail {
 		t.Errorf("expected email %q, got %q", DefaultEmail, c.Email)
 	}
+	if c.MaxBytes != DefaultMaxResponseBytes {
+		t.Errorf("expected max bytes %d, got %d", DefaultMaxResponseBytes, c.MaxBytes)
+	}
+	if c.Limiter == nil {
+		t.Error("expected non-nil limiter")
+	}
 }
 
-func TestNewClient_WithOptions(t *testing.T) {
-	c := NewClient(
+func TestNewBaseClient_WithOptions(t *testing.T) {
+	c := NewBaseClient(
 		WithBaseURL("http://localhost:9999"),
 		WithAPIKey("test-key-123"),
 		WithTool("my-tool"),
 		WithEmail("test@example.com"),
+		WithMaxResponseBytes(1024),
 	)
 	if c.BaseURL != "http://localhost:9999" {
 		t.Errorf("expected base URL %q, got %q", "http://localhost:9999", c.BaseURL)
@@ -46,26 +51,33 @@ func TestNewClient_WithOptions(t *testing.T) {
 	if c.Email != "test@example.com" {
 		t.Errorf("expected email %q, got %q", "test@example.com", c.Email)
 	}
+	if c.MaxBytes != 1024 {
+		t.Errorf("expected max bytes 1024, got %d", c.MaxBytes)
+	}
 }
 
-func TestClient_CommonParams(t *testing.T) {
+func TestDoGet_CommonParams(t *testing.T) {
 	var receivedParams map[string]string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedParams = make(map[string]string)
 		for k, v := range r.URL.Query() {
 			receivedParams[k] = v[0]
 		}
-		w.Write([]byte(`{"esearchresult":{"count":"0","retmax":"20","retstart":"0","idlist":[],"querytranslation":"test"}}`))
+		w.Write([]byte(`OK`))
 	}))
 	defer srv.Close()
 
-	c := NewClient(
+	c := NewBaseClient(
 		WithBaseURL(srv.URL),
 		WithAPIKey("my-api-key"),
 		WithTool("pubmed-cli"),
 		WithEmail("user@example.com"),
 	)
-	_, _ = c.Search(context.Background(), "test", nil)
+
+	_, err := c.DoGet(context.Background(), "test.fcgi", make(map[string][]string))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if receivedParams["api_key"] != "my-api-key" {
 		t.Errorf("expected api_key %q, got %q", "my-api-key", receivedParams["api_key"])
@@ -78,23 +90,25 @@ func TestClient_CommonParams(t *testing.T) {
 	}
 }
 
-func TestClient_RateLimiting(t *testing.T) {
+func TestDoGet_RateLimitSequential(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping rate limit test in short mode")
 	}
-	var requestCount int64
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt64(&requestCount, 1)
-		w.Write([]byte(`{"esearchresult":{"count":"0","retmax":"20","retstart":"0","idlist":[],"querytranslation":"test"}}`))
+		w.Write([]byte(`OK`))
 	}))
 	defer srv.Close()
 
 	// Client without API key: max 3 req/sec
-	c := NewClient(WithBaseURL(srv.URL))
+	c := NewBaseClient(WithBaseURL(srv.URL))
 
 	start := time.Now()
 	for i := 0; i < 4; i++ {
-		_, _ = c.Search(context.Background(), "test", nil)
+		_, err := c.DoGet(context.Background(), "test.fcgi", make(map[string][]string))
+		if err != nil {
+			t.Fatalf("request %d failed: %v", i, err)
+		}
 	}
 	elapsed := time.Since(start)
 
@@ -104,10 +118,10 @@ func TestClient_RateLimiting(t *testing.T) {
 	}
 }
 
-// TestClient_ConcurrentRateLimitNoKey is the critical concurrency test.
-// It spins up 10 goroutines calling Search against httptest.Server,
-// asserting ≤4 requests per second (rate=3, burst=1).
-func TestClient_ConcurrentRateLimitNoKey(t *testing.T) {
+// TestDoGet_ConcurrentRateLimitNoKey is the critical concurrency test.
+// It spins up 10 goroutines and asserts ≤4 requests in any 1-second window
+// (rate=3/sec, burst=1 allows at most 4 due to timing).
+func TestDoGet_ConcurrentRateLimitNoKey(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping concurrent rate limit test in short mode")
 	}
@@ -119,18 +133,18 @@ func TestClient_ConcurrentRateLimitNoKey(t *testing.T) {
 		mu.Lock()
 		timestamps = append(timestamps, time.Now())
 		mu.Unlock()
-		w.Write([]byte(`{"esearchresult":{"count":"0","retmax":"20","retstart":"0","idlist":[],"querytranslation":"test"}}`))
+		w.Write([]byte(`OK`))
 	}))
 	defer srv.Close()
 
-	c := NewClient(WithBaseURL(srv.URL)) // no API key = 3 req/sec
+	c := NewBaseClient(WithBaseURL(srv.URL)) // no API key = 3 req/sec
 
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _ = c.Search(context.Background(), "test", nil)
+			_, _ = c.DoGet(context.Background(), "test.fcgi", make(map[string][]string))
 		}()
 	}
 	wg.Wait()
@@ -154,15 +168,17 @@ func TestClient_ConcurrentRateLimitNoKey(t *testing.T) {
 		}
 		if count > 4 {
 			t.Errorf("rate limit violated: %d requests within 1 second starting at index %d (max 4 expected)", count, i)
+			// Log timestamps for debugging
 			for k, ts := range timestamps {
-				t.Logf("  request %d: +%v", k, ts.Sub(timestamps[0]))
+				t.Logf("  request %d: %v", k, ts.Sub(timestamps[0]))
 			}
 			break
 		}
 	}
 }
 
-func TestClient_ConcurrentRateLimitWithKey(t *testing.T) {
+// TestDoGet_ConcurrentRateLimitWithKey tests with API key (10 req/sec).
+func TestDoGet_ConcurrentRateLimitWithKey(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping concurrent rate limit test in short mode")
 	}
@@ -174,18 +190,18 @@ func TestClient_ConcurrentRateLimitWithKey(t *testing.T) {
 		mu.Lock()
 		timestamps = append(timestamps, time.Now())
 		mu.Unlock()
-		w.Write([]byte(`{"esearchresult":{"count":"0","retmax":"20","retstart":"0","idlist":[],"querytranslation":"test"}}`))
+		w.Write([]byte(`OK`))
 	}))
 	defer srv.Close()
 
-	c := NewClient(WithBaseURL(srv.URL), WithAPIKey("test-key"))
+	c := NewBaseClient(WithBaseURL(srv.URL), WithAPIKey("test-key"))
 
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _ = c.Search(context.Background(), "test", nil)
+			_, _ = c.DoGet(context.Background(), "test.fcgi", make(map[string][]string))
 		}()
 	}
 	wg.Wait()
@@ -198,8 +214,8 @@ func TestClient_ConcurrentRateLimitWithKey(t *testing.T) {
 		return timestamps[i].Before(timestamps[j])
 	})
 
-	// With rate=10/sec and burst=1, all 10 requests should complete
-	// in about 1 second. Check no more than 11 in any 1-second window.
+	// With rate=10/sec and burst=1, no more than 11 requests should land
+	// in any 1-second window. With only 10 total requests, this should be fine.
 	for i := 0; i < len(timestamps); i++ {
 		count := 1
 		for j := i + 1; j < len(timestamps); j++ {
@@ -214,19 +230,21 @@ func TestClient_ConcurrentRateLimitWithKey(t *testing.T) {
 	}
 }
 
-func TestClient_ResponseTooLarge(t *testing.T) {
+func TestDoGet_ResponseTooLarge(t *testing.T) {
+	// Server returns a response larger than MaxBytes
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Write 2KB of data
 		w.Write([]byte(strings.Repeat("X", 2048)))
 	}))
 	defer srv.Close()
 
-	c := NewClient(
+	c := NewBaseClient(
 		WithBaseURL(srv.URL),
 		WithAPIKey("test"),
-		ncbi.WithMaxResponseBytes(1024),
+		WithMaxResponseBytes(1024), // 1KB limit
 	)
 
-	_, err := c.Search(context.Background(), "test", nil)
+	_, err := c.DoGet(context.Background(), "test.fcgi", make(map[string][]string))
 	if err == nil {
 		t.Error("expected error for oversized response, got nil")
 	}
@@ -235,17 +253,89 @@ func TestClient_ResponseTooLarge(t *testing.T) {
 	}
 }
 
-func TestClient_ContextCancellation(t *testing.T) {
-	// Pre-cancelled context should fail immediately
-	c := NewClient(
-		WithBaseURL("http://127.0.0.1:1"), // won't connect
+func TestDoGet_ResponseWithinLimit(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("small response"))
+	}))
+	defer srv.Close()
+
+	c := NewBaseClient(
+		WithBaseURL(srv.URL),
+		WithAPIKey("test"),
+		WithMaxResponseBytes(1024),
+	)
+
+	body, err := c.DoGet(context.Background(), "test.fcgi", make(map[string][]string))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(body) != "small response" {
+		t.Errorf("expected 'small response', got %q", string(body))
+	}
+}
+
+func TestDoGet_ContextCancellation(t *testing.T) {
+	c := NewBaseClient(
+		WithBaseURL("http://127.0.0.1:1"),
 		WithAPIKey("test"),
 	)
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // cancel immediately
+	cancel()
 
-	_, err := c.Search(ctx, "test", nil)
+	_, err := c.DoGet(ctx, "test.fcgi", make(map[string][]string))
 	if err == nil {
 		t.Error("expected error from cancelled context, got nil")
 	}
+}
+
+func TestDoGet_HTTPError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c := NewBaseClient(WithBaseURL(srv.URL), WithAPIKey("test"))
+	_, err := c.DoGet(context.Background(), "test.fcgi", make(map[string][]string))
+	if err == nil {
+		t.Error("expected error for HTTP 500, got nil")
+	}
+}
+
+func TestDoGet_HTTP429(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer srv.Close()
+
+	c := NewBaseClient(WithBaseURL(srv.URL), WithAPIKey("test"))
+	_, err := c.DoGet(context.Background(), "test.fcgi", make(map[string][]string))
+	if err == nil {
+		t.Error("expected error for HTTP 429, got nil")
+	}
+	if !strings.Contains(err.Error(), "429") {
+		t.Errorf("expected '429' in error message, got: %v", err)
+	}
+}
+
+func TestDoGet_URLJoinPath(t *testing.T) {
+	// Ensure trailing slash on base URL doesn't cause double-slash
+	var receivedPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedPath = r.URL.Path
+		w.Write([]byte(`OK`))
+	}))
+	defer srv.Close()
+
+	// Base URL with trailing slash
+	c := NewBaseClient(WithBaseURL(srv.URL+"/"), WithAPIKey("test"))
+	_, err := c.DoGet(context.Background(), "esearch.fcgi", make(map[string][]string))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if strings.Contains(receivedPath, "//") {
+		t.Errorf("double slash in path: %q", receivedPath)
+	}
+
+	fmt.Println("received path:", receivedPath)
 }

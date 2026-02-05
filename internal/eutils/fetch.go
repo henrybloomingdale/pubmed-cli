@@ -143,7 +143,7 @@ func (c *Client) Fetch(ctx context.Context, pmids []string) ([]Article, error) {
 	params.Set("rettype", "xml")
 	params.Set("retmode", "xml")
 
-	body, err := c.doGet(ctx, "efetch.fcgi", params)
+	body, err := c.DoGet(ctx, "efetch.fcgi", params)
 	if err != nil {
 		return nil, fmt.Errorf("fetch request failed: %w", err)
 	}

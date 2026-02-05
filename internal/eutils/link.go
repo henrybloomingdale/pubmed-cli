@@ -70,7 +70,7 @@ func (c *Client) link(ctx context.Context, pmid, linkName string, withScores boo
 		params.Set("cmd", "neighbor_score")
 	}
 
-	body, err := c.doGet(ctx, "elink.fcgi", params)
+	body, err := c.DoGet(ctx, "elink.fcgi", params)
 	if err != nil {
 		return nil, fmt.Errorf("link request failed: %w", err)
 	}

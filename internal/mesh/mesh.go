@@ -5,11 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"strings"
-	"time"
+
+	"github.com/henrybloomingdale/pubmed-cli/internal/ncbi"
 )
 
 // MeSHRecord represents a MeSH descriptor record.
@@ -23,25 +21,14 @@ type MeSHRecord struct {
 }
 
 // Client provides MeSH lookup functionality.
+// It embeds ncbi.BaseClient for shared rate limiting and common parameters.
 type Client struct {
-	baseURL    string
-	apiKey     string
-	tool       string
-	email      string
-	httpClient *http.Client
+	*ncbi.BaseClient
 }
 
-// NewClient creates a new MeSH lookup client.
-func NewClient(baseURL, apiKey, tool, email string) *Client {
-	return &Client{
-		baseURL: baseURL,
-		apiKey:  apiKey,
-		tool:    tool,
-		email:   email,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-	}
+// NewClient creates a new MeSH lookup client using an existing NCBI base client.
+func NewClient(base *ncbi.BaseClient) *Client {
+	return &Client{BaseClient: base}
 }
 
 // esearchResult for parsing MeSH search.
@@ -79,13 +66,16 @@ func (c *Client) Lookup(ctx context.Context, term string) (*MeSHRecord, error) {
 }
 
 func (c *Client) searchMeSH(ctx context.Context, term string) ([]string, error) {
-	params := url.Values{}
-	params.Set("db", "mesh")
-	params.Set("term", term)
-	params.Set("retmode", "json")
-	c.addCommonParams(params)
+	params := make(map[string][]string)
+	vals := make(map[string]string)
+	vals["db"] = "mesh"
+	vals["term"] = term
+	vals["retmode"] = "json"
+	for k, v := range vals {
+		params[k] = []string{v}
+	}
 
-	resp, err := c.doGet(ctx, "esearch.fcgi", params)
+	resp, err := c.DoGet(ctx, "esearch.fcgi", params)
 	if err != nil {
 		return nil, fmt.Errorf("MeSH search failed: %w", err)
 	}
@@ -99,53 +89,24 @@ func (c *Client) searchMeSH(ctx context.Context, term string) ([]string, error) 
 }
 
 func (c *Client) fetchMeSH(ctx context.Context, uid string) (*MeSHRecord, error) {
-	params := url.Values{}
-	params.Set("db", "mesh")
-	params.Set("id", uid)
-	params.Set("rettype", "full")
-	params.Set("retmode", "text")
-	c.addCommonParams(params)
+	params := make(map[string][]string)
+	vals := map[string]string{
+		"db":      "mesh",
+		"id":      uid,
+		"rettype": "full",
+		"retmode": "text",
+	}
+	for k, v := range vals {
+		params[k] = []string{v}
+	}
 
-	body, err := c.doGet(ctx, "efetch.fcgi", params)
+	body, err := c.DoGet(ctx, "efetch.fcgi", params)
 	if err != nil {
 		return nil, fmt.Errorf("MeSH fetch failed: %w", err)
 	}
 
 	record := parseMeSHRecord(string(body))
 	return &record, nil
-}
-
-func (c *Client) addCommonParams(params url.Values) {
-	if c.apiKey != "" {
-		params.Set("api_key", c.apiKey)
-	}
-	if c.tool != "" {
-		params.Set("tool", c.tool)
-	}
-	if c.email != "" {
-		params.Set("email", c.email)
-	}
-}
-
-func (c *Client) doGet(ctx context.Context, endpoint string, params url.Values) ([]byte, error) {
-	fullURL := fmt.Sprintf("%s/%s?%s", c.baseURL, endpoint, params.Encode())
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("NCBI returned HTTP %d", resp.StatusCode)
-	}
-
-	return io.ReadAll(resp.Body)
 }
 
 // parseMeSHRecord parses the NCBI MeSH full text format into a MeSHRecord.

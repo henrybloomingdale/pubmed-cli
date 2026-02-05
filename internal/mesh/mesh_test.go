@@ -6,7 +6,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/henrybloomingdale/pubmed-cli/internal/ncbi"
 )
 
 func loadTestdata(t *testing.T, filename string) []byte {
@@ -16,6 +19,17 @@ func loadTestdata(t *testing.T, filename string) []byte {
 		t.Fatalf("failed to load testdata/%s: %v", filename, err)
 	}
 	return data
+}
+
+func newTestClient(t *testing.T, srvURL string) *Client {
+	t.Helper()
+	base := ncbi.NewBaseClient(
+		ncbi.WithBaseURL(srvURL),
+		ncbi.WithAPIKey("test-key"),
+		ncbi.WithTool("pubmed-cli"),
+		ncbi.WithEmail("test@example.com"),
+	)
+	return NewClient(base)
 }
 
 func TestLookup_Success(t *testing.T) {
@@ -51,7 +65,7 @@ func TestLookup_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, "test-key", "pubmed-cli", "test@example.com")
+	c := newTestClient(t, srv.URL)
 	record, err := c.Lookup(context.Background(), "Fragile X Syndrome")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -101,7 +115,7 @@ func TestLookup_NotFound(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, "test-key", "pubmed-cli", "test@example.com")
+	c := newTestClient(t, srv.URL)
 	_, err := c.Lookup(context.Background(), "nonexistent_mesh_term_xyz")
 	if err == nil {
 		t.Error("expected error for not found term, got nil")
@@ -109,10 +123,34 @@ func TestLookup_NotFound(t *testing.T) {
 }
 
 func TestLookup_EmptyTerm(t *testing.T) {
-	c := NewClient("http://example.com", "key", "tool", "email")
+	base := ncbi.NewBaseClient(ncbi.WithBaseURL("http://example.com"), ncbi.WithAPIKey("key"))
+	c := NewClient(base)
 	_, err := c.Lookup(context.Background(), "")
 	if err == nil {
 		t.Error("expected error for empty term, got nil")
+	}
+}
+
+func TestLookup_ResponseTooLarge(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Return a response larger than max bytes
+		w.Write([]byte(strings.Repeat("X", 2048)))
+	}))
+	defer srv.Close()
+
+	base := ncbi.NewBaseClient(
+		ncbi.WithBaseURL(srv.URL),
+		ncbi.WithAPIKey("test"),
+		ncbi.WithMaxResponseBytes(1024),
+	)
+	c := NewClient(base)
+
+	_, err := c.Lookup(context.Background(), "test")
+	if err == nil {
+		t.Error("expected error for oversized response, got nil")
+	}
+	if !strings.Contains(err.Error(), "exceeds maximum size") {
+		t.Errorf("expected 'exceeds maximum size' error, got: %v", err)
 	}
 }
 

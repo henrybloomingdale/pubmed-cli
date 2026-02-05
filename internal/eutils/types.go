@@ -39,14 +39,18 @@ type AbstractSection struct {
 
 // Author represents an article author.
 type Author struct {
-	LastName    string `json:"last_name"`
-	ForeName    string `json:"fore_name"`
-	Initials    string `json:"initials"`
-	Affiliation string `json:"affiliation,omitempty"`
+	LastName       string `json:"last_name"`
+	ForeName       string `json:"fore_name"`
+	Initials       string `json:"initials"`
+	CollectiveName string `json:"collective_name,omitempty"`
+	Affiliation    string `json:"affiliation,omitempty"`
 }
 
-// FullName returns "ForeName LastName".
+// FullName returns "ForeName LastName", or CollectiveName if present.
 func (a Author) FullName() string {
+	if a.CollectiveName != "" {
+		return a.CollectiveName
+	}
 	if a.ForeName == "" {
 		return a.LastName
 	}
@@ -55,10 +59,10 @@ func (a Author) FullName() string {
 
 // MeSHTerm represents a MeSH heading with optional qualifiers.
 type MeSHTerm struct {
-	Descriptor  string   `json:"descriptor"`
-	DescriptorUI string  `json:"descriptor_ui"`
-	MajorTopic  bool     `json:"major_topic"`
-	Qualifiers  []string `json:"qualifiers,omitempty"`
+	Descriptor   string   `json:"descriptor"`
+	DescriptorUI string   `json:"descriptor_ui"`
+	MajorTopic   bool     `json:"major_topic"`
+	Qualifiers   []string `json:"qualifiers,omitempty"`
 }
 
 // LinkResult represents the result of an ELink query.
@@ -79,15 +83,4 @@ type SearchOptions struct {
 	Sort    string `json:"sort,omitempty"`
 	MinDate string `json:"min_date,omitempty"`
 	MaxDate string `json:"max_date,omitempty"`
-	PubType string `json:"pub_type,omitempty"`
-}
-
-// MeSHRecord represents a MeSH descriptor record.
-type MeSHRecord struct {
-	UI          string   `json:"ui"`
-	Name        string   `json:"name"`
-	ScopeNote   string   `json:"scope_note"`
-	TreeNumbers []string `json:"tree_numbers"`
-	EntryTerms  []string `json:"entry_terms"`
-	Annotation  string   `json:"annotation,omitempty"`
 }

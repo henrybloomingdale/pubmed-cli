@@ -51,7 +51,7 @@ func (c *Client) Search(ctx context.Context, query string, opts *SearchOptions) 
 	}
 	params.Set("retmax", strconv.Itoa(limit))
 
-	body, err := c.doGet(ctx, "esearch.fcgi", params)
+	body, err := c.DoGet(ctx, "esearch.fcgi", params)
 	if err != nil {
 		return nil, fmt.Errorf("search request failed: %w", err)
 	}
