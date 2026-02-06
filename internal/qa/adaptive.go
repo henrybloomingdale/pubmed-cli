@@ -137,12 +137,16 @@ func ExpandQuery(question string) string {
 		"Based on a 2025 meta-analysis,",
 		"Based on a 2025 RCT,",
 		"Based on 2025 evidence,",
-		"According to a", "Based on a",
+		"Based on 2025 studies,",
+		"According to a", "Based on a", "Based on",
 	}
 	for _, p := range preambles {
 		q = strings.Replace(q, p, "", 1)
 		q = strings.Replace(q, strings.ToLower(p), "", 1)
 	}
+	
+	// Trim before checking question words
+	q = strings.TrimSpace(q)
 
 	// Remove question words at start of query only
 	questionWords := []string{"does ", "Does ", "do ", "Do ", "is ", "Is ", "can ", "Can "}
