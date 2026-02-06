@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -18,6 +19,7 @@ var (
 	qaFlagExplain    bool
 	qaFlagModel      string
 	qaFlagBaseURL    string
+	qaFlagClaude     bool
 )
 
 func init() {
@@ -27,6 +29,7 @@ func init() {
 	qaCmd.Flags().BoolVarP(&qaFlagExplain, "explain", "e", false, "Show reasoning and sources")
 	qaCmd.Flags().StringVar(&qaFlagModel, "model", "", "LLM model (default: gpt-4o or LLM_MODEL env)")
 	qaCmd.Flags().StringVar(&qaFlagBaseURL, "llm-url", "", "LLM API base URL (default: LLM_BASE_URL env)")
+	qaCmd.Flags().BoolVar(&qaFlagClaude, "claude", false, "Use Claude API (requires ANTHROPIC_API_KEY)")
 
 	rootCmd.AddCommand(qaCmd)
 }
@@ -54,18 +57,35 @@ Environment variables:
 	RunE: runQA,
 }
 
+// LLMCompleter is the interface both OpenAI and Claude clients implement.
+type LLMCompleter interface {
+	Complete(ctx context.Context, prompt string, maxTokens int) (string, error)
+}
+
 func runQA(cmd *cobra.Command, args []string) error {
 	question := strings.Join(args, " ")
 
 	// Build LLM client
-	var llmOpts []llm.Option
-	if qaFlagModel != "" {
-		llmOpts = append(llmOpts, llm.WithModel(qaFlagModel))
+	var llmClient LLMCompleter
+	var err error
+
+	if qaFlagClaude {
+		// Use Claude via OAuth tokens from keychain
+		llmClient, err = llm.NewClaudeClient(qaFlagModel)
+		if err != nil {
+			return fmt.Errorf("claude setup: %w", err)
+		}
+	} else {
+		// Use OpenAI-compatible API
+		var llmOpts []llm.Option
+		if qaFlagModel != "" {
+			llmOpts = append(llmOpts, llm.WithModel(qaFlagModel))
+		}
+		if qaFlagBaseURL != "" {
+			llmOpts = append(llmOpts, llm.WithBaseURL(qaFlagBaseURL))
+		}
+		llmClient = llm.NewClient(llmOpts...)
 	}
-	if qaFlagBaseURL != "" {
-		llmOpts = append(llmOpts, llm.WithBaseURL(qaFlagBaseURL))
-	}
-	llmClient := llm.NewClient(llmOpts...)
 
 	// Build QA engine
 	cfg := qa.DefaultConfig()

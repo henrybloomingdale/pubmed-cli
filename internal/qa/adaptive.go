@@ -9,8 +9,12 @@ import (
 	"strings"
 
 	"github.com/henrybloomingdale/pubmed-cli/internal/eutils"
-	"github.com/henrybloomingdale/pubmed-cli/internal/llm"
 )
+
+// LLMClient is the interface for LLM completions.
+type LLMClient interface {
+	Complete(ctx context.Context, prompt string, maxTokens int) (string, error)
+}
 
 // Strategy represents the retrieval decision.
 type Strategy string
@@ -50,13 +54,13 @@ func DefaultConfig() Config {
 
 // Engine performs adaptive question answering.
 type Engine struct {
-	llm    *llm.Client
+	llm    LLMClient
 	eutils *eutils.Client
 	cfg    Config
 }
 
 // NewEngine creates a new QA engine.
-func NewEngine(llmClient *llm.Client, eutilsClient *eutils.Client, cfg Config) *Engine {
+func NewEngine(llmClient LLMClient, eutilsClient *eutils.Client, cfg Config) *Engine {
 	return &Engine{
 		llm:    llmClient,
 		eutils: eutilsClient,
