@@ -35,21 +35,13 @@ func NewClaudeClient(model string) (*ClaudeClient, error) {
 
 // Complete sends a prompt to Claude CLI and returns the response.
 func (c *ClaudeClient) Complete(ctx context.Context, prompt string, maxTokens int) (string, error) {
-	// Build command with text output (simpler than stream-json)
-	cmd := exec.CommandContext(ctx, c.binaryPath,
-		"-p", // Print mode (non-interactive)
-		"--dangerously-skip-permissions",
-		"--output-format", "text",
-		"--model", c.model,
-		"--max-turns", "1",
-		"--", prompt,
-	)
-
 	// Set timeout via context
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
-	cmd = exec.CommandContext(ctx, c.binaryPath,
-		"-p",
+
+	// Build command with text output
+	cmd := exec.CommandContext(ctx, c.binaryPath,
+		"-p", // Print mode (non-interactive)
 		"--dangerously-skip-permissions",
 		"--output-format", "text",
 		"--model", c.model,

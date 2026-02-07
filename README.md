@@ -4,8 +4,7 @@
     <strong>PubMed from your terminal. Built for humans and AI agents.</strong>
   </p>
   <p align="center">
-    <a href="https://github.com/henrybloomingdale/pubmed-cli/actions"><img src="https://img.shields.io/github/actions/workflow/status/henrybloomingdale/pubmed-cli/ci.yml?branch=main&style=flat-square&label=tests" alt="CI"></a>
-    <a href="https://goreportcard.com/report/github.com/henrybloomingdale/pubmed-cli"><img src="https://goreportcard.com/badge/github.com/henrybloomingdale/pubmed-cli?style=flat-square" alt="Go Report Card"></a>
+    <a href="https://github.com/henrybloomingdale/pubmed-cli/releases/latest"><img src="https://img.shields.io/badge/version-0.3.0-blue?style=flat-square" alt="v0.3.0"></a>
     <img src="https://img.shields.io/badge/go-1.25-00ADD8?style=flat-square&logo=go" alt="Go 1.25">
     <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   </p>
@@ -13,29 +12,39 @@
 
 ---
 
-Search PubMed, fetch abstracts, traverse citation networks, and look up MeSH terms -- all from the command line. Outputs structured JSON for piping into scripts, dashboards, or LLM tool-use loops.
-
-**Why this exists:** Standard RAG retrieves what's *similar*. Agentic tool use retrieves what's *relevant*. This CLI gives any LLM agent direct, composable access to the 37M+ articles in PubMed via NCBI E-utilities -- no vector database, no embedding model, no retrieval corpus to maintain.
+Search PubMed, fetch abstracts, traverse citation networks, answer biomedical questions, and look up MeSH terms — all from the command line. Outputs structured JSON for piping into scripts, dashboards, or LLM tool-use loops.
 
 ## ✨ Features
 
-- **6 commands** -- `search`, `fetch`, `cited-by`, `references`, `related`, `mesh`
-- **Dual output** -- `--json` for machines, `--human` for rich terminal display
-- **Rate-limited** -- respects NCBI guidelines (3 req/s default, 10 with API key)
-- **Zero dependencies** -- single static binary, ~5ms startup
-- **Pipe-friendly** -- compose with `jq`, `xargs`, or any scripting language
-- **Agent-ready** -- designed as a tool for LLM function calling / agentic workflows
+- **7 commands** — `search`, `fetch`, `cited-by`, `references`, `related`, `mesh`, `qa`
+- **Adaptive QA** — confidence-gated retrieval that knows when to look things up
+- **Dual output** — `--json` for machines, `--human` for rich terminal display
+- **LLM integration** — works with OpenAI, Anthropic, or any OpenAI-compatible API
+- **Rate-limited** — respects NCBI guidelines (3 req/s default, 10 with API key)
+- **Zero dependencies** — single static binary, ~5ms startup
+- **Pipe-friendly** — compose with `jq`, `xargs`, or any scripting language
 
 ## 📦 Installation
 
-```bash
-# Go install
-go install github.com/henrybloomingdale/pubmed-cli/cmd/pubmed@latest
+### Homebrew (recommended)
 
-# Or build from source
+```bash
+brew tap henrybloomingdale/tools
+brew install pubmed-cli
+```
+
+### Go install
+
+```bash
+go install github.com/henrybloomingdale/pubmed-cli/cmd/pubmed@latest
+```
+
+### Build from source
+
+```bash
 git clone https://github.com/henrybloomingdale/pubmed-cli.git
 cd pubmed-cli
-make build
+go build -o pubmed ./cmd/pubmed
 ```
 
 ## ⚙️ Configuration
@@ -45,29 +54,87 @@ make build
 Without a key you're limited to 3 requests/second. With one, you get 10. Free at [ncbi.nlm.nih.gov/account/settings](https://www.ncbi.nlm.nih.gov/account/settings/).
 
 ```bash
-# Environment variable (preferred)
 export NCBI_API_KEY="your-key-here"
-
-# Or .env file in working directory
-echo 'NCBI_API_KEY=your-key-here' > .env
-
-# Or per-command
-pubmed search --api-key "your-key" "fragile x syndrome"
 ```
 
-## 🚀 Usage
+### LLM API (for `qa` command)
 
-### Search
+The `qa` command uses an LLM for answering questions. Configure via environment variables:
+
+```bash
+# OpenAI
+export LLM_API_KEY="sk-..."
+export LLM_MODEL="gpt-4o"  # optional, defaults to gpt-4o
+
+# Or any OpenAI-compatible API
+export LLM_BASE_URL="https://api.example.com/v1"
+export LLM_API_KEY="your-key"
+export LLM_MODEL="your-model"
+
+# Or Claude (uses Claude CLI OAuth)
+pubmed qa --claude "your question"
+```
+
+## 🚀 Commands
+
+### qa — Answer biomedical questions
+
+The `qa` command uses **adaptive retrieval**: it detects when a question requires recent literature (post-training knowledge) and retrieves from PubMed only when necessary.
+
+```bash
+# Basic question — model decides whether to retrieve
+pubmed qa "Does CBT help hypertension-related anxiety?"
+# Output: yes
+
+# Show reasoning and sources
+pubmed qa --explain "Is metformin effective for PCOS?"
+# 🧠 Answer: YES
+#    Strategy: parametric
+#    Confidence: 9/10
+
+# Novel knowledge — always retrieves
+pubmed qa --explain "According to 2025 studies, does SGLT-2 reduce liver fibrosis?"
+# 🔍 Answer: YES
+#    Strategy: retrieval
+#    Novel knowledge detected: yes
+#    Sources: 41234567, 41234568, 41234569
+
+# Force retrieval (never trust parametric)
+pubmed qa --retrieve "Does aspirin prevent colorectal cancer?"
+
+# JSON output for pipelines
+pubmed qa --json "Is there evidence for gut-brain axis in autism?"
+```
+
+**How adaptive retrieval works:**
+
+1. **Novelty detection** — Scans for year patterns (2024+) or recency keywords ("recent study", "latest research"). If detected, always retrieves.
+2. **Confidence check** — For established knowledge, asks the model its confidence (1-10). Default threshold: 7.
+3. **Smart retrieval** — If confidence is below threshold, searches PubMed and augments with evidence.
+4. **Minification** — Extracts key sentences (results, conclusions, statistics) from abstracts to reduce tokens by ~74%.
+
+| Flag | Description |
+|------|-------------|
+| `--explain`, `-e` | Show reasoning, strategy, confidence, sources |
+| `--json` | Structured JSON output |
+| `--retrieve` | Force retrieval (skip confidence check) |
+| `--parametric` | Force parametric (never retrieve) |
+| `--confidence N` | Confidence threshold (default: 7) |
+| `--model` | LLM model name |
+| `--llm-url` | LLM API base URL |
+| `--claude` | Use Claude via CLI OAuth |
+
+### search — Search PubMed
 
 ```bash
 # Basic search
 pubmed search "fragile x syndrome"
 
-# MeSH + date filter
-pubmed search '"fragile x syndrome"[MeSH] AND "electroencephalography"[MeSH]' --year 2020-2025
+# With filters
+pubmed search "ADHD treatment" --type review --year 2020-2025 --limit 10
 
-# Filters and sorting
-pubmed search "ADHD treatment" --type review --limit 10 --sort date
+# MeSH terms
+pubmed search '"fragile x syndrome"[MeSH] AND "electroencephalography"[MeSH]'
 
 # JSON for scripting
 pubmed search "autism biomarkers" --json | jq '.ids[]'
@@ -76,10 +143,10 @@ pubmed search "autism biomarkers" --json | jq '.ids[]'
 pubmed search "CRISPR therapy" --human
 ```
 
-### Fetch
+### fetch — Get article details
 
 ```bash
-# Single article (full abstract, authors, MeSH, DOI)
+# Single article
 pubmed fetch 38123456
 
 # Multiple articles
@@ -89,93 +156,114 @@ pubmed fetch 38123456 37987654 37876543
 pubmed fetch 38123456 --json | jq '{title: .title, doi: .doi}'
 ```
 
-### Citation Network
+### cited-by — Who cited this paper?
 
 ```bash
-# Who cited this paper?
 pubmed cited-by 38123456
+pubmed cited-by 38123456 --json | jq '.citing_ids'
+```
 
-# What does this paper cite?
+### references — What does this paper cite?
+
+```bash
 pubmed references 38123456
+```
 
-# Similar articles (NCBI relevance scores)
+### related — Find similar articles
+
+```bash
 pubmed related 38123456
 ```
 
-### MeSH Terms
+### mesh — Look up MeSH terms
 
 ```bash
-# Look up a MeSH descriptor
 pubmed mesh "Fragile X Syndrome"
-
-# JSON output
 pubmed mesh "Electroencephalography" --json
 ```
 
 ## 🤖 Agent Tool Use
 
-The CLI is designed to be called by LLM agents via function calling. Define tools that map to commands:
+This CLI is designed as a tool for LLM agents. Rather than building a RAG pipeline with embeddings and vector databases, give your agent direct access to PubMed:
 
 ```python
+# Define tools for your agent
 tools = [
-    {"name": "pubmed_search",  "exec": "pubmed --json search {query}"},
-    {"name": "pubmed_fetch",   "exec": "pubmed --json fetch {pmid}"},
-    {"name": "pubmed_cited_by","exec": "pubmed --json cited-by {pmid}"},
-    # ...
+    {
+        "name": "pubmed_qa",
+        "description": "Answer biomedical yes/no questions with evidence from PubMed",
+        "exec": "pubmed qa --json '{question}'"
+    },
+    {
+        "name": "pubmed_search",
+        "description": "Search PubMed for articles",
+        "exec": "pubmed search --json '{query}'"
+    },
+    {
+        "name": "pubmed_fetch",
+        "description": "Get full article details by PMID",
+        "exec": "pubmed fetch --json {pmid}"
+    },
+    {
+        "name": "pubmed_cited_by",
+        "description": "Find papers that cite a given paper",
+        "exec": "pubmed cited-by --json {pmid}"
+    }
 ]
 ```
 
-An agent can then autonomously:
-1. **Search** -- formulate and refine PubMed queries
-2. **Fetch** -- read abstracts for relevant hits
-3. **Traverse** -- follow citation networks to find seminal or recent work
-4. **Synthesize** -- answer questions grounded in real literature
+**Why agentic tool use beats RAG:**
 
-This approach outperforms standard RAG on biomedical QA benchmarks. See our [MIRAGE evaluation](docs/benchmark.md) (coming soon).
+| Approach | How it works | Limitation |
+|----------|--------------|------------|
+| RAG | Embed corpus → vector search → retrieve similar | Retrieves what's *similar*, not what's *relevant* |
+| Agentic | LLM decides what to search → fetches → reasons | Retrieves what's *needed* for the question |
 
-## 📋 Reference
+The `qa` command implements **confidence-gated adaptive retrieval**: the model only retrieves when it's uncertain, avoiding unnecessary API calls for well-established knowledge while ensuring accuracy on novel or obscure topics.
+
+## 📋 Global Flags
 
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--json` | Structured JSON output | `false` |
-| `--human` | Rich terminal display | `false` |
-| `--csv` | CSV export | `false` |
+| `--human`, `-H` | Rich terminal display | `false` |
 | `--limit N` | Max results | `20` |
 | `--sort` | `relevance` \| `date` \| `cited` | `relevance` |
-| `--year` | Year range (e.g. `2020-2025`) | -- |
-| `--type` | `review` \| `trial` \| `meta-analysis` | -- |
+| `--year` | Year range (e.g. `2020-2025`) | — |
+| `--type` | `review` \| `trial` \| `meta-analysis` | — |
 | `--api-key` | NCBI API key | `$NCBI_API_KEY` |
+| `--csv` | Export to CSV file | — |
 
 ## 🏗️ Architecture
 
 ```
 pubmed-cli/
-├── cmd/pubmed/          # Cobra CLI entry point
+├── cmd/pubmed/           # CLI entry point (Cobra)
+│   ├── main.go           # Root command + search/fetch/mesh/link commands
+│   └── qa.go             # QA command with adaptive retrieval
 ├── internal/
-│   ├── eutils/          # NCBI E-utilities client
-│   │   ├── client.go    # Rate-limited HTTP transport
-│   │   ├── search.go    # ESearch
-│   │   ├── fetch.go     # EFetch + XML parsing
-│   │   ├── link.go      # ELink (citations, related)
-│   │   └── types.go     # Domain types
-│   ├── mesh/            # MeSH descriptor lookup
-│   └── output/          # JSON / human / CSV formatters
-├── testdata/            # Canned NCBI responses for unit tests
-├── Makefile
+│   ├── eutils/           # NCBI E-utilities client
+│   │   ├── client.go     # Rate-limited HTTP transport
+│   │   ├── search.go     # ESearch
+│   │   ├── fetch.go      # EFetch + XML parsing
+│   │   ├── link.go       # ELink (citations, related)
+│   │   └── types.go      # Domain types
+│   ├── llm/              # LLM client abstraction
+│   │   └── client.go     # OpenAI-compatible + Claude support
+│   ├── qa/               # Adaptive retrieval engine
+│   │   └── adaptive.go   # Novelty detection, confidence gating, minification
+│   ├── mesh/             # MeSH descriptor lookup
+│   └── output/           # JSON / human / CSV formatters
 └── go.mod
 ```
 
 ## 🧪 Development
 
 ```bash
-make build           # Build binary
-make test            # Unit tests (26 tests, offline)
-make test-integration # Integration tests (real NCBI API)
-make lint            # golangci-lint
-make coverage        # Coverage report
+go build -o pubmed ./cmd/pubmed   # Build
+go test ./...                      # Run tests
+go test -race ./...                # Race detection
 ```
-
-Tests use `net/http/httptest` with fixture responses in `testdata/`. TDD throughout.
 
 ## 📄 License
 
@@ -183,7 +271,8 @@ MIT
 
 ## 🙏 Acknowledgments
 
-Built on the [NCBI E-utilities API](https://www.ncbi.nlm.nih.gov/books/NBK25501/). Please respect their [usage guidelines](https://www.ncbi.nlm.nih.gov/books/NBK25497/).
+- Built on [NCBI E-utilities](https://www.ncbi.nlm.nih.gov/books/NBK25501/)
+- Inspired by the limitations of RAG for biomedical QA
 
 ---
 

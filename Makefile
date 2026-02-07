@@ -1,10 +1,18 @@
-.PHONY: build test test-integration install lint clean
+.PHONY: build test test-integration install lint clean release
 
+VERSION := 0.3.0
 BINARY := pubmed
 PKG := ./cmd/pubmed
 
 build:
 	go build -o $(BINARY) $(PKG)
+
+# Cross-compile for release
+release:
+	GOOS=darwin GOARCH=arm64 go build -o $(BINARY)-darwin-arm64 $(PKG)
+	GOOS=darwin GOARCH=amd64 go build -o $(BINARY)-darwin-amd64 $(PKG)
+	GOOS=linux GOARCH=amd64 go build -o $(BINARY)-linux-amd64 $(PKG)
+	@echo "Built binaries for darwin/arm64, darwin/amd64, linux/amd64"
 
 test:
 	go test -short -count=1 ./...
