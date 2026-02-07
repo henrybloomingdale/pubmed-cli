@@ -488,10 +488,6 @@ func saveMarkdownFile(path string, result *synth.Result) error {
 	return os.WriteFile(path, []byte(sb.String()), 0o644)
 }
 
-func convertToDocx(mdPath, docxPath string) error {
-	return convertToDocxContext(context.Background(), mdPath, docxPath)
-}
-
 func convertToDocxContext(ctx context.Context, mdPath, docxPath string) error {
 	if ctx == nil {
 		ctx = context.Background()

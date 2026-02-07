@@ -9,28 +9,6 @@ import (
 	"github.com/henrybloomingdale/pubmed-cli/internal/eutils"
 )
 
-// mockEutilsClient implements a mock eutils.Client for testing.
-type mockEutilsClient struct {
-	searchResult *eutils.SearchResult
-	searchErr    error
-	fetchResult  []eutils.Article
-	fetchErr     error
-}
-
-func (m *mockEutilsClient) Search(ctx context.Context, query string, opts *eutils.SearchOptions) (*eutils.SearchResult, error) {
-	if m.searchErr != nil {
-		return nil, m.searchErr
-	}
-	return m.searchResult, nil
-}
-
-func (m *mockEutilsClient) Fetch(ctx context.Context, ids []string) ([]eutils.Article, error) {
-	if m.fetchErr != nil {
-		return nil, m.fetchErr
-	}
-	return m.fetchResult, nil
-}
-
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
