@@ -1,5 +1,16 @@
 // Claude CLI wrapper for LLM inference.
-// Uses the claude binary which handles OAuth authentication internally.
+//
+// This uses a unique integration approach: instead of calling the Anthropic API
+// directly (which requires an ANTHROPIC_API_KEY), we shell out to the Claude Code
+// CLI binary. The CLI handles OAuth authentication internally via the user's
+// Anthropic account.
+//
+// Benefits:
+//   - No API key management required
+//   - Works with existing Claude Code / Max subscriptions
+//   - Respects Anthropic's CLI-level rate limits
+//
+// The claude binary must be installed: npm install -g @anthropic-ai/claude-code
 package llm
 
 import (

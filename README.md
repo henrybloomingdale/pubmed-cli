@@ -59,21 +59,37 @@ export NCBI_API_KEY="your-key-here"
 
 ### LLM API (for `qa` command)
 
-The `qa` command uses an LLM for answering questions. Configure via environment variables:
+The `qa` command uses an LLM for answering questions. Three options:
+
+#### Option 1: OpenAI API
 
 ```bash
-# OpenAI
 export LLM_API_KEY="sk-..."
 export LLM_MODEL="gpt-4o"  # optional, defaults to gpt-4o
+```
 
-# Or any OpenAI-compatible API
+#### Option 2: Any OpenAI-compatible API
+
+```bash
 export LLM_BASE_URL="https://api.example.com/v1"
 export LLM_API_KEY="your-key"
 export LLM_MODEL="your-model"
+```
 
-# Or Claude (uses Claude CLI OAuth)
+#### Option 3: Claude CLI (no API key needed)
+
+```bash
 pubmed qa --claude "your question"
 ```
+
+The `--claude` flag uses a unique integration: instead of calling the Anthropic API directly, it shells out to the [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) (`claude` binary). The CLI handles OAuth authentication internally via your Anthropic account — no `ANTHROPIC_API_KEY` required.
+
+This approach:
+- **No API key management** — Uses your existing Claude Code authentication
+- **Respects CLI rate limits** — Anthropic's CLI handles quotas
+- **Works with Max subscriptions** — If you have Claude Code access, it just works
+
+Install Claude Code CLI: `npm install -g @anthropic-ai/claude-code`
 
 ## 🚀 Commands
 
