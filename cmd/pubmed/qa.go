@@ -68,94 +68,159 @@ type LLMCompleter interface {
 	Complete(ctx context.Context, prompt string, maxTokens int) (string, error)
 }
 
-func runQA(cmd *cobra.Command, args []string) error {
-	question := strings.Join(args, " ")
+// qaConfig holds resolved configuration for QA command.
+type qaConfig struct {
+	useClaude   bool
+	useCodex    bool
+	useOpus     bool
+	model       string
+	baseURL     string
+	unsafe      bool
+	confidence  int
+	retrieve    bool
+	parametric  bool
+	explain     bool
+	jsonOutput  bool
+	humanOutput bool
+}
 
-	// Validate mutually exclusive flags.
-	if qaFlagClaude && qaFlagCodex {
-		return fmt.Errorf("--claude and --codex are mutually exclusive")
+// resolveQAConfig gathers and validates all QA flags into a config struct.
+func resolveQAConfig(cmd *cobra.Command) (*qaConfig, error) {
+	cfg := &qaConfig{
+		useClaude:   qaFlagClaude,
+		useCodex:    qaFlagCodex,
+		useOpus:     qaFlagOpus,
+		model:       qaFlagModel,
+		baseURL:     qaFlagBaseURL,
+		unsafe:      qaFlagUnsafe,
+		confidence:  qaFlagConfidence,
+		retrieve:    qaFlagRetrieval,
+		parametric:  qaFlagParametric,
+		explain:     qaFlagExplain,
+		jsonOutput:  flagJSON,
+		humanOutput: flagHuman,
 	}
 
-	// Determine security config for LLM clients.
-	// QA uses read-only by default (safest for question-answering).
-	securityCfg := llm.ForQA()
-	if qaFlagUnsafe {
+	if cfg.useClaude && cfg.useCodex {
+		return nil, fmt.Errorf("--claude and --codex are mutually exclusive")
+	}
+
+	if cfg.unsafe {
 		fmt.Fprintln(cmd.ErrOrStderr(), "⚠️  WARNING: --unsafe enables full LLM access. The model can execute arbitrary commands.")
+	}
+
+	return cfg, nil
+}
+
+// createQAClient builds the appropriate LLM client based on config.
+func createQAClient(cfg *qaConfig) (LLMCompleter, error) {
+	securityCfg := llm.ForQA()
+	if cfg.unsafe {
 		securityCfg = securityCfg.WithFullAccess()
 	}
 
-	// Build LLM client
-	var llmClient LLMCompleter
-	var err error
-
-	if qaFlagCodex {
-		// Use Codex via OAuth tokens from ChatGPT account
-		codexOpts := []llm.CodexOption{
-			llm.WithSecurityConfig(securityCfg),
-		}
-		if qaFlagModel != "" {
-			codexOpts = append(codexOpts, llm.WithCodexModel(qaFlagModel))
-		}
-		llmClient, err = llm.NewCodexClient(codexOpts...)
-		if err != nil {
-			return fmt.Errorf("codex setup: %w", err)
-		}
-	} else if qaFlagClaude {
-		// Use Claude via OAuth tokens from keychain
-		claudeOpts := []llm.ClaudeOption{
-			llm.WithClaudeSecurityConfig(securityCfg),
-		}
-		if qaFlagModel != "" {
-			claudeOpts = append(claudeOpts, llm.WithClaudeModel(qaFlagModel))
-		}
-		if qaFlagOpus {
-			claudeOpts = append(claudeOpts, llm.WithOpus(true))
-		}
-		llmClient, err = llm.NewClaudeClientWithOptions(claudeOpts...)
-		if err != nil {
-			return fmt.Errorf("claude setup: %w", err)
-		}
-	} else {
-		// Use OpenAI-compatible API
-		var llmOpts []llm.Option
-		if qaFlagModel != "" {
-			llmOpts = append(llmOpts, llm.WithModel(qaFlagModel))
-		}
-		if qaFlagBaseURL != "" {
-			llmOpts = append(llmOpts, llm.WithBaseURL(qaFlagBaseURL))
-		}
-		llmClient = llm.NewClient(llmOpts...)
+	if cfg.useCodex {
+		return createCodexClient(cfg, securityCfg)
 	}
+	if cfg.useClaude {
+		return createClaudeClient(cfg, securityCfg)
+	}
+	return createOpenAIClient(cfg), nil
+}
 
-	// Build QA engine
-	cfg := qa.DefaultConfig()
-	cfg.ConfidenceThreshold = qaFlagConfidence
-	cfg.ForceRetrieval = qaFlagRetrieval
-	cfg.ForceParametric = qaFlagParametric
-	cfg.Verbose = qaFlagExplain
-
-	engine := qa.NewEngine(llmClient, newEutilsClient(), cfg)
-
-	// Get answer
-	result, err := engine.Answer(cmd.Context(), question)
+// createCodexClient builds a Codex LLM client.
+func createCodexClient(cfg *qaConfig, securityCfg llm.SecurityConfig) (LLMCompleter, error) {
+	opts := []llm.CodexOption{llm.WithSecurityConfig(securityCfg)}
+	if cfg.model != "" {
+		opts = append(opts, llm.WithCodexModel(cfg.model))
+	}
+	client, err := llm.NewCodexClient(opts...)
 	if err != nil {
-		return fmt.Errorf("qa failed: %w", err)
+		return nil, fmt.Errorf("codex setup: %w", err)
 	}
+	return client, nil
+}
 
-	// Output
-	if flagJSON {
+// createClaudeClient builds a Claude LLM client.
+func createClaudeClient(cfg *qaConfig, securityCfg llm.SecurityConfig) (LLMCompleter, error) {
+	opts := []llm.ClaudeOption{llm.WithClaudeSecurityConfig(securityCfg)}
+	if cfg.model != "" {
+		opts = append(opts, llm.WithClaudeModel(cfg.model))
+	}
+	if cfg.useOpus {
+		opts = append(opts, llm.WithOpus(true))
+	}
+	client, err := llm.NewClaudeClientWithOptions(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("claude setup: %w", err)
+	}
+	return client, nil
+}
+
+// createOpenAIClient builds an OpenAI-compatible LLM client.
+func createOpenAIClient(cfg *qaConfig) LLMCompleter {
+	var opts []llm.Option
+	if cfg.model != "" {
+		opts = append(opts, llm.WithModel(cfg.model))
+	}
+	if cfg.baseURL != "" {
+		opts = append(opts, llm.WithBaseURL(cfg.baseURL))
+	}
+	return llm.NewClient(opts...)
+}
+
+// processQAQuestion runs the QA engine and returns the result.
+func processQAQuestion(ctx context.Context, question string, cfg *qaConfig, client LLMCompleter) (*qa.Result, error) {
+	engineCfg := qa.DefaultConfig()
+	engineCfg.ConfidenceThreshold = cfg.confidence
+	engineCfg.ForceRetrieval = cfg.retrieve
+	engineCfg.ForceParametric = cfg.parametric
+	engineCfg.Verbose = cfg.explain
+
+	engine := qa.NewEngine(client, newEutilsClient(), engineCfg)
+
+	result, err := engine.Answer(ctx, question)
+	if err != nil {
+		return nil, fmt.Errorf("qa failed: %w", err)
+	}
+	return result, nil
+}
+
+// formatQAResult outputs the result in the appropriate format.
+func formatQAResult(result *qa.Result, cfg *qaConfig) error {
+	if cfg.jsonOutput {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		return enc.Encode(result)
 	}
 
-	if qaFlagExplain || flagHuman {
+	if cfg.explain || cfg.humanOutput {
 		printExplainedResult(result)
 	} else {
 		fmt.Println(result.Answer)
 	}
-
 	return nil
+}
+
+func runQA(cmd *cobra.Command, args []string) error {
+	question := strings.Join(args, " ")
+
+	cfg, err := resolveQAConfig(cmd)
+	if err != nil {
+		return err
+	}
+
+	client, err := createQAClient(cfg)
+	if err != nil {
+		return err
+	}
+
+	result, err := processQAQuestion(cmd.Context(), question, cfg, client)
+	if err != nil {
+		return err
+	}
+
+	return formatQAResult(result, cfg)
 }
 
 func printExplainedResult(r *qa.Result) {
