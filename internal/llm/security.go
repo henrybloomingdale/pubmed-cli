@@ -113,11 +113,12 @@ func DefaultSecurityConfig() SecurityConfig {
 // Uses the most restrictive settings since QA only needs to read and respond.
 func ForQA() SecurityConfig {
 	return SecurityConfig{
-		SandboxMode:       SandboxReadOnly,
-		AllowNetworkCalls: true,
-		MaxPromptLength:   50 * 1024, // 50KB is plenty for QA
-		AllowToolUse:      false,
-		AllowedDomains:    nil,
+		SandboxMode:         SandboxReadOnly,
+		AllowNetworkCalls:   true,
+		MaxPromptLength:     50 * 1024, // 50KB is plenty for QA
+		AllowToolUse:        false,
+		AllowedDomains:      nil,
+		AllowShellMetachars: true, // PubMed abstracts contain $, &, | in scientific notation
 	}
 }
 
@@ -125,11 +126,12 @@ func ForQA() SecurityConfig {
 // Read-only by default but with higher prompt limits for context.
 func ForSynthesis() SecurityConfig {
 	return SecurityConfig{
-		SandboxMode:       SandboxReadOnly,
-		AllowNetworkCalls: true,
-		MaxPromptLength:   200 * 1024, // Synthesis needs more context
-		AllowToolUse:      false,
-		AllowedDomains:    nil,
+		SandboxMode:         SandboxReadOnly,
+		AllowNetworkCalls:   true,
+		MaxPromptLength:     200 * 1024, // Synthesis needs more context
+		AllowToolUse:        false,
+		AllowedDomains:      nil,
+		AllowShellMetachars: true, // PubMed abstracts contain $, &, | in scientific notation
 	}
 }
 

@@ -82,8 +82,8 @@ func NewCodexClient(opts ...CodexOption) (*CodexClient, error) {
 
 // Complete sends a prompt to Codex CLI and returns the response.
 func (c *CodexClient) Complete(ctx context.Context, prompt string, maxTokens int) (string, error) {
-	// Sanitize and validate input before passing to CLI
-	sanitizedPrompt, err := SanitizePrompt(prompt)
+	// Sanitize and validate input before passing to CLI using client's security config
+	sanitizedPrompt, err := SanitizePromptWithConfig(prompt, c.security)
 	if err != nil {
 		return "", fmt.Errorf("invalid prompt: %w", err)
 	}
