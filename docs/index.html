@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>pubmed-cli Testing Guide</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --card: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --text-muted: #8b949e;
+            --accent: #58a6ff;
+            --green: #3fb950;
+            --yellow: #d29922;
+            --red: #f85149;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 { color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+        h2 { color: var(--green); margin-top: 2rem; }
+        h3 { color: var(--text); margin-top: 1.5rem; }
+        .status { 
+            display: inline-block; 
+            padding: 2px 8px; 
+            border-radius: 4px; 
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .status.pass { background: #238636; color: white; }
+        .status.warn { background: var(--yellow); color: black; }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        pre {
+            background: #0d1117;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+            overflow-x: auto;
+            position: relative;
+        }
+        code {
+            font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.9rem;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: var(--border);
+            border: none;
+            color: var(--text);
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
+        .copy-btn:hover { background: var(--accent); }
+        .copy-btn.copied { background: var(--green); }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.75rem;
+            text-align: left;
+        }
+        th { background: var(--card); }
+        .note {
+            background: #1f2937;
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .warning {
+            background: #422006;
+            border-left: 4px solid var(--yellow);
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        details { margin: 0.5rem 0; }
+        summary { 
+            cursor: pointer; 
+            padding: 0.5rem;
+            background: var(--card);
+            border-radius: 4px;
+        }
+        summary:hover { background: var(--border); }
+        .output {
+            background: #1a1a2e;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 pubmed-cli Testing Guide</h1>
+    <p>Interactive testing guide for all pubmed-cli features. Click commands to copy.</p>
+    
+    <div class="note">
+        <strong>Prerequisites:</strong> Set your NCBI API key: <code>export NCBI_API_KEY="your-key"</code><br>
+        For LLM features, ensure <code>claude</code> CLI is installed and authenticated.
+    </div>
+
+    <h2>📋 Quick Status</h2>
+    <table>
+        <tr><th>Category</th><th>Status</th><th>Commands</th></tr>
+        <tr><td>Search & Fetch</td><td><span class="status pass">PASS</span></td><td>search, fetch, mesh</td></tr>
+        <tr><td>Link Discovery</td><td><span class="status pass">PASS</span></td><td>cited-by, references, related</td></tr>
+        <tr><td>Literature Synthesis</td><td><span class="status pass">PASS</span></td><td>synth, wizard</td></tr>
+        <tr><td>Question Answering</td><td><span class="status pass">PASS</span></td><td>qa</td></tr>
+        <tr><td>Configuration</td><td><span class="status pass">PASS</span></td><td>config</td></tr>
+        <tr><td>Output Formats</td><td><span class="status pass">PASS</span></td><td>JSON, CSV, BibTeX, RIS, DOCX</td></tr>
+    </table>
+
+    <h2>🔍 Search Commands</h2>
+    
+    <h3>Basic Search</h3>
+    <div class="card">
+        <pre><code>pubmed search "fragile X syndrome" --limit 5 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        <details>
+            <summary>Expected Output</summary>
+            <div class="output"><pre>{"count": 8076, "ids": ["41651661", "41651254", ...], "query_translation": "..."}</pre></div>
+        </details>
+    </div>
+
+    <h3>Human-Readable Output</h3>
+    <div class="card">
+        <pre><code>pubmed search "CRISPR" --limit 3 --human</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h3>Year Filter</h3>
+    <div class="card">
+        <pre><code>pubmed search "autism intervention" --year 2024-2025 --limit 5 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h3>Publication Type Filters</h3>
+    <div class="card">
+        <pre><code># Reviews only
+pubmed search "diabetes treatment" --type review --limit 3 --json
+
+# Clinical trials
+pubmed search "COVID vaccine" --type trial --year 2024-2025 --limit 3 --json
+
+# Meta-analyses
+pubmed search "statin cardiovascular" --type meta-analysis --limit 3 --human</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h3>Sort Options</h3>
+    <div class="card">
+        <pre><code># Sort by date (newest first)
+pubmed search "machine learning radiology" --sort date --limit 3 --json
+
+# Sort by citations
+pubmed search "CRISPR" --sort cited --limit 5 --human</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h3>CSV Export</h3>
+    <div class="card">
+        <pre><code>pubmed search "FMRP" --limit 10 --csv results.csv</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h3>Special Characters & Boolean</h3>
+    <div class="card">
+        <pre><code># Greek characters
+pubmed search 'IL-6 AND (TNF-α OR TNF-alpha)' --limit 3 --json
+
+# Quoted phrases
+pubmed search '"machine learning" AND "deep learning"' --limit 3 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h2>📄 Fetch Commands</h2>
+
+    <h3>Single Article</h3>
+    <div class="card">
+        <pre><code>pubmed fetch 38000001 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h3>Full Abstract (Human)</h3>
+    <div class="card">
+        <pre><code>pubmed fetch 41651254 --human --full</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h3>Batch Fetch</h3>
+    <div class="card">
+        <pre><code>pubmed fetch 41651254,41645177,41644074 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h2>🔗 Link Discovery</h2>
+
+    <h3>Cited By</h3>
+    <div class="card">
+        <pre><code>pubmed cited-by 38000001 --limit 5 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h3>References</h3>
+    <div class="card">
+        <pre><code>pubmed references 38000001 --limit 10 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h3>Related Articles</h3>
+    <div class="card">
+        <pre><code>pubmed related 38000001 --limit 5 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        <details>
+            <summary>Expected Output</summary>
+            <div class="output"><pre>{"source_id": "38000001", "links": [{"id": "39212176", "score": 25466406}, ...]}</pre></div>
+        </details>
+    </div>
+
+    <h2>🏷️ MeSH Lookup</h2>
+    <div class="card">
+        <pre><code>pubmed mesh "autism" --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        <details>
+            <summary>Expected Output</summary>
+            <div class="output"><pre>{
+  "ui": "D001321",
+  "name": "Autistic Disorder",
+  "scope_note": "A disorder beginning in childhood...",
+  "tree_numbers": ["F03.625.164.113.500"],
+  "entry_terms": ["Disorder, Autistic", "Autism", ...]
+}</pre></div>
+        </details>
+    </div>
+
+    <div class="card">
+        <pre><code>pubmed mesh "depression" --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h2>📝 Literature Synthesis</h2>
+    
+    <div class="warning">
+        <strong>Note:</strong> Synthesis requires an LLM backend. Use <code>--claude</code> for Claude CLI or set <code>LLM_API_KEY</code> for OpenAI-compatible APIs.
+    </div>
+
+    <h3>Basic Synthesis</h3>
+    <div class="card">
+        <pre><code>pubmed synth "FMRP synaptic function" --papers 3 --words 100 --claude</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h3>Single Paper Deep Dive</h3>
+    <div class="card">
+        <pre><code>pubmed synth --pmid 41401891 --words 150 --claude</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h3>BibTeX + RIS Export</h3>
+    <div class="card">
+        <pre><code>pubmed synth "ketamine depression" --papers 3 --bibtex refs.bib --ris refs.ris --claude</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h3>Word Document Output</h3>
+    <div class="card">
+        <pre><code>pubmed synth "ADHD stimulant medications" --papers 3 --words 100 --docx review.docx --claude</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">Requires <code>pandoc</code> installed.</p>
+    </div>
+
+    <h3>JSON Output (for agents)</h3>
+    <div class="card">
+        <pre><code>pubmed synth "autism biomarkers" --papers 5 --claude --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h2>❓ Question Answering</h2>
+
+    <h3>Basic QA</h3>
+    <div class="card">
+        <pre><code>pubmed qa "Does FMRP regulate synaptic plasticity?" --claude --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        <details>
+            <summary>Expected Output</summary>
+            <div class="output"><pre>{
+  "question": "Does FMRP regulate synaptic plasticity?",
+  "answer": "yes",
+  "confidence": 5,
+  "strategy": "retrieval",
+  "novel_detected": false,
+  "source_pmids": ["41401891", "41276503", "41177899"],
+  "context": "..."
+}</pre></div>
+        </details>
+    </div>
+
+    <h3>Human-Readable Output</h3>
+    <div class="card">
+        <pre><code>pubmed qa "Is metformin effective for type 2 diabetes?" --claude --human</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        <details>
+            <summary>Expected Output</summary>
+            <div class="output"><pre>🧠 Answer: YES
+   Strategy: parametric
+   Confidence: 10/10</pre></div>
+        </details>
+    </div>
+
+    <h3>Force Retrieval (Novel Questions)</h3>
+    <div class="card">
+        <pre><code>pubmed qa "Does the 2025 RECOVER trial show paxlovid helps long COVID?" --retrieve --claude --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h3>Force Parametric (Skip Retrieval)</h3>
+    <div class="card">
+        <pre><code>pubmed qa "Does aspirin reduce heart attack risk?" --parametric --claude --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h3>Custom Confidence Threshold</h3>
+    <div class="card">
+        <pre><code>pubmed qa "Does lithium prevent suicide in bipolar disorder?" --confidence 9 --explain --claude --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">Higher threshold = more likely to trigger retrieval.</p>
+    </div>
+
+    <h2>⚙️ Configuration</h2>
+
+    <h3>Show Current Config</h3>
+    <div class="card">
+        <pre><code>pubmed config show</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h3>Interactive Config Editor</h3>
+    <div class="card">
+        <pre><code>pubmed config set</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h3>Reset to Defaults</h3>
+    <div class="card">
+        <pre><code>pubmed config reset</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h2>🔧 Edge Cases</h2>
+
+    <h3>Empty Results</h3>
+    <div class="card">
+        <pre><code>pubmed search "xyznonexistentterm123abc" --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        <details>
+            <summary>Expected Output</summary>
+            <div class="output"><pre>{"count": 0, "ids": [], "query_translation": "xyznonexistentterm123abc", ...}</pre></div>
+        </details>
+    </div>
+
+    <h3>Invalid PMID</h3>
+    <div class="card">
+        <pre><code>pubmed fetch 99999999999 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        <details>
+            <summary>Expected Output</summary>
+            <div class="output"><pre>[]</pre></div>
+        </details>
+    </div>
+
+    <h2>🐚 Shell Completion</h2>
+    <div class="card">
+        <pre><code># Bash
+pubmed completion bash > /usr/local/etc/bash_completion.d/pubmed
+
+# Zsh
+pubmed completion zsh > "${fpath[1]}/_pubmed"
+
+# Fish
+pubmed completion fish > ~/.config/fish/completions/pubmed.fish</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <h2>📊 Full Test Suite</h2>
+    <div class="card">
+        <pre><code># Run all tests in sequence
+pubmed search "test" --limit 1 --json && \
+pubmed fetch 38000001 --json | head -5 && \
+pubmed mesh "cancer" --json && \
+pubmed cited-by 38000001 --limit 3 --json && \
+pubmed config show && \
+echo "✅ All basic tests passed"</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+    </div>
+
+    <hr style="margin: 3rem 0; border-color: var(--border);">
+    <p style="color: var(--text-muted); text-align: center;">
+        pubmed-cli v0.5.1 · <a href="https://github.com/henrybloomingdale/pubmed-cli" style="color: var(--accent);">GitHub</a> · Last tested: 2026-02-07
+    </p>
+
+    <script>
+        function copyCmd(btn) {
+            const code = btn.parentElement.querySelector('code').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                btn.textContent = 'Copied!';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = 'Copy';
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
