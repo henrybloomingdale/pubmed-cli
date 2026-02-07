@@ -89,8 +89,17 @@ Environment:
 	RunE: runSynth,
 }
 
-func runSynth(cmd *cobra.Command, args []string) error {
-	// Validate args.
+// synthConfig holds resolved configuration for a synthesis run.
+type synthConfig struct {
+	question    string
+	pmid        string
+	useTUI      bool
+	securityCfg llm.SecurityConfig
+	synthCfg    synth.Config
+}
+
+// validateSynthFlags validates command-line arguments and flag values.
+func validateSynthFlags(cmd *cobra.Command, args []string) error {
 	pmid := strings.TrimSpace(synthFlagPMID)
 	if pmid == "" && len(args) == 0 {
 		return fmt.Errorf("provide a question or use --pmid for single paper")
@@ -111,169 +120,182 @@ func runSynth(cmd *cobra.Command, args []string) error {
 	if synthFlagRelevance < 1 || synthFlagRelevance > 10 {
 		return fmt.Errorf("--relevance must be 1-10")
 	}
-	if synthFlagPapers > synthFlagSearch {
-		// Avoid accidentally filtering down to fewer than requested.
-		synthFlagSearch = synthFlagPapers
-	}
 
-	// Validate mutually exclusive flags.
 	if synthFlagClaude && synthFlagCodex {
 		return fmt.Errorf("--claude and --codex are mutually exclusive")
 	}
 
-	// Determine security config for LLM clients.
-	// Synthesis uses read-only by default (sufficient for generating text).
+	return nil
+}
+
+// resolveSynthConfig builds configuration from command-line flags.
+func resolveSynthConfig(cmd *cobra.Command, args []string) *synthConfig {
+	// Adjust search to ensure we have enough papers.
+	search := synthFlagSearch
+	if synthFlagPapers > search {
+		search = synthFlagPapers
+	}
+
+	// Determine security config.
 	securityCfg := llm.ForSynthesis()
 	if synthFlagUnsafe {
 		fmt.Fprintln(cmd.ErrOrStderr(), "⚠️  WARNING: --unsafe enables full LLM access. The model can execute arbitrary commands.")
 		securityCfg = securityCfg.WithFullAccess()
 	}
 
-	// Build LLM client.
-	var llmClient synth.LLMClient
-	var err error
-	if synthFlagCodex {
-		codexOpts := []llm.CodexOption{
-			llm.WithSecurityConfig(securityCfg),
-		}
-		if synthFlagModel != "" {
-			codexOpts = append(codexOpts, llm.WithCodexModel(synthFlagModel))
-		}
-		llmClient, err = llm.NewCodexClient(codexOpts...)
-		if err != nil {
-			return fmt.Errorf("codex setup: %w", err)
-		}
-	} else if synthFlagClaude {
-		claudeOpts := []llm.ClaudeOption{
-			llm.WithClaudeSecurityConfig(securityCfg),
-		}
-		if synthFlagModel != "" {
-			claudeOpts = append(claudeOpts, llm.WithClaudeModel(synthFlagModel))
-		}
-		if synthFlagOpus {
-			claudeOpts = append(claudeOpts, llm.WithOpus(true))
-		}
-		llmClient, err = llm.NewClaudeClientWithOptions(claudeOpts...)
-		if err != nil {
-			return fmt.Errorf("claude setup: %w", err)
-		}
-	} else {
-		var llmOpts []llm.Option
-		if synthFlagModel != "" {
-			llmOpts = append(llmOpts, llm.WithModel(synthFlagModel))
-		}
-		if synthFlagBaseURL != "" {
-			llmOpts = append(llmOpts, llm.WithBaseURL(synthFlagBaseURL))
-		}
-		llmClient = llm.NewClient(llmOpts...)
-	}
-
-	// Build config.
+	// Build synth config.
 	cfg := synth.DefaultConfig()
 	cfg.PapersToUse = synthFlagPapers
-	cfg.PapersToSearch = synthFlagSearch
+	cfg.PapersToSearch = search
 	cfg.RelevanceThreshold = synthFlagRelevance
 	cfg.TargetWords = synthFlagWords
 
-	// Build engine.
-	engine := synth.NewEngine(llmClient, newEutilsClient(), cfg)
+	return &synthConfig{
+		question:    strings.TrimSpace(strings.Join(args, " ")),
+		pmid:        strings.TrimSpace(synthFlagPMID),
+		useTUI:      isatty.IsTerminal(os.Stderr.Fd()) && isatty.IsTerminal(os.Stdin.Fd()),
+		securityCfg: securityCfg,
+		synthCfg:    cfg,
+	}
+}
 
-	// Context for cancellation (e.g., Ctrl+C in the progress UI).
-	ctx, cancel := context.WithCancel(cmd.Context())
+// createSynthLLMClient creates the appropriate LLM client based on flags.
+func createSynthLLMClient(securityCfg llm.SecurityConfig) (synth.LLMClient, error) {
+	if synthFlagCodex {
+		opts := []llm.CodexOption{llm.WithSecurityConfig(securityCfg)}
+		if synthFlagModel != "" {
+			opts = append(opts, llm.WithCodexModel(synthFlagModel))
+		}
+		return llm.NewCodexClient(opts...)
+	}
+
+	if synthFlagClaude {
+		opts := []llm.ClaudeOption{llm.WithClaudeSecurityConfig(securityCfg)}
+		if synthFlagModel != "" {
+			opts = append(opts, llm.WithClaudeModel(synthFlagModel))
+		}
+		if synthFlagOpus {
+			opts = append(opts, llm.WithOpus(true))
+		}
+		return llm.NewClaudeClientWithOptions(opts...)
+	}
+
+	// Default: OpenAI-compatible client.
+	var opts []llm.Option
+	if synthFlagModel != "" {
+		opts = append(opts, llm.WithModel(synthFlagModel))
+	}
+	if synthFlagBaseURL != "" {
+		opts = append(opts, llm.WithBaseURL(synthFlagBaseURL))
+	}
+	return llm.NewClient(opts...), nil
+}
+
+// runSynthWithTUI runs synthesis with an interactive terminal UI.
+func runSynthWithTUI(ctx context.Context, engine *synth.Engine, cfg *synthConfig) (*synth.Result, error) {
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Run synthesis (optionally with a Charm progress UI).
-	var result *synth.Result
-	question := strings.TrimSpace(strings.Join(args, " "))
+	progressCh := make(chan synth.ProgressUpdate, 1024)
+	engine.WithProgress(func(u synth.ProgressUpdate) {
+		select {
+		case progressCh <- u:
+		default:
+		}
+	})
 
-	useTUI := isatty.IsTerminal(os.Stderr.Fd()) && isatty.IsTerminal(os.Stdin.Fd())
-	if useTUI {
-		progressCh := make(chan synth.ProgressUpdate, 1024)
-		engine.WithProgress(func(u synth.ProgressUpdate) {
-			// Never block the engine on UI updates.
-			select {
-			case progressCh <- u:
-			default:
-			}
-		})
+	out := make(chan struct {
+		res *synth.Result
+		err error
+	}, 1)
 
-		out := make(chan struct {
+	go func() {
+		defer close(progressCh)
+		var r *synth.Result
+		var e error
+		if cfg.pmid != "" {
+			r, e = engine.SynthesizePMID(ctx, cfg.pmid)
+		} else {
+			r, e = engine.Synthesize(ctx, cfg.question)
+		}
+		out <- struct {
 			res *synth.Result
 			err error
-		}, 1)
+		}{res: r, err: e}
+	}()
 
-		go func() {
-			defer close(progressCh)
-			var r *synth.Result
-			var e error
-			if pmid != "" {
-				r, e = engine.SynthesizePMID(ctx, pmid)
-			} else {
-				r, e = engine.Synthesize(ctx, question)
-			}
-			out <- struct {
-				res *synth.Result
-				err error
-			}{res: r, err: e}
-		}()
-
-		p := tea.NewProgram(
-			newSynthProgressModel(progressCh, cancel),
-			tea.WithOutput(os.Stderr),
-		)
-		if _, uiErr := p.Run(); uiErr != nil {
-			cancel()
-			o := <-out
-			_ = o
-			return uiErr
-		}
-		o := <-out
-		result, err = o.res, o.err
-	} else {
-		// Plain-text progress for piped output/logs.
-		lastMsg := ""
-		engine.WithProgress(func(u synth.ProgressUpdate) {
-			// Dedupe by message text (engine emits same message with different Current values)
-			if u.Message != "" && u.Message != lastMsg {
-				lastMsg = u.Message
-				fmt.Fprintln(os.Stderr, u.Message)
-			}
-		})
-
-		if pmid != "" {
-			result, err = engine.SynthesizePMID(ctx, pmid)
-		} else {
-			result, err = engine.Synthesize(ctx, question)
-		}
+	p := tea.NewProgram(
+		newSynthProgressModel(progressCh, cancel),
+		tea.WithOutput(os.Stderr),
+	)
+	if _, uiErr := p.Run(); uiErr != nil {
+		cancel()
+		<-out
+		return nil, uiErr
 	}
-	if err != nil {
-		return fmt.Errorf("synthesize: %w", err)
+	o := <-out
+	return o.res, o.err
+}
+
+// runSynthPlain runs synthesis with plain-text progress output.
+func runSynthPlain(ctx context.Context, engine *synth.Engine, cfg *synthConfig) (*synth.Result, error) {
+	lastMsg := ""
+	engine.WithProgress(func(u synth.ProgressUpdate) {
+		if u.Message != "" && u.Message != lastMsg {
+			lastMsg = u.Message
+			fmt.Fprintln(os.Stderr, u.Message)
+		}
+	})
+
+	if cfg.pmid != "" {
+		return engine.SynthesizePMID(ctx, cfg.pmid)
 	}
+	return engine.Synthesize(ctx, cfg.question)
+}
+
+// writeRISFile writes RIS format references to the specified path.
+func writeRISFile(path string, result *synth.Result) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create RIS dir: %w", err)
+	}
+	if err := os.WriteFile(path, []byte(result.RIS), 0o644); err != nil {
+		return fmt.Errorf("write RIS file: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "✓ Wrote %s (%d references)\n", path, len(result.References))
+	return nil
+}
+
+// writeBibTeXFile writes BibTeX format references to the specified path.
+func writeBibTeXFile(path string, result *synth.Result) error {
+	bibtex := synth.GenerateBibTeX(result.References)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create BibTeX dir: %w", err)
+	}
+	if err := os.WriteFile(path, []byte(bibtex), 0o644); err != nil {
+		return fmt.Errorf("write BibTeX file: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "✓ Wrote %s (%d references)\n", path, len(result.References))
+	return nil
+}
+
+// handleSynthResult writes output files and displays results.
+func handleSynthResult(ctx context.Context, result *synth.Result) error {
 	if result == nil {
 		return errors.New("synthesis returned nil result")
 	}
 
 	// Write RIS file if requested.
 	if synthFlagRIS != "" {
-		if err := os.MkdirAll(filepath.Dir(synthFlagRIS), 0o755); err != nil {
-			return fmt.Errorf("create RIS dir: %w", err)
+		if err := writeRISFile(synthFlagRIS, result); err != nil {
+			return err
 		}
-		if err := os.WriteFile(synthFlagRIS, []byte(result.RIS), 0o644); err != nil {
-			return fmt.Errorf("write RIS file: %w", err)
-		}
-		fmt.Fprintf(os.Stderr, "✓ Wrote %s (%d references)\n", synthFlagRIS, len(result.References))
 	}
 
 	// Write BibTeX file if requested.
 	if synthFlagBibTeX != "" {
-		bibtex := synth.GenerateBibTeX(result.References)
-		if err := os.MkdirAll(filepath.Dir(synthFlagBibTeX), 0o755); err != nil {
-			return fmt.Errorf("create BibTeX dir: %w", err)
+		if err := writeBibTeXFile(synthFlagBibTeX, result); err != nil {
+			return err
 		}
-		if err := os.WriteFile(synthFlagBibTeX, []byte(bibtex), 0o644); err != nil {
-			return fmt.Errorf("write BibTeX file: %w", err)
-		}
-		fmt.Fprintf(os.Stderr, "✓ Wrote %s (%d references)\n", synthFlagBibTeX, len(result.References))
 	}
 
 	// Write DOCX if requested.
@@ -299,6 +321,34 @@ func runSynth(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	return outputMarkdown(result)
+}
+
+// runSynth orchestrates the synthesis workflow.
+func runSynth(cmd *cobra.Command, args []string) error {
+	if err := validateSynthFlags(cmd, args); err != nil {
+		return err
+	}
+
+	cfg := resolveSynthConfig(cmd, args)
+
+	llmClient, err := createSynthLLMClient(cfg.securityCfg)
+	if err != nil {
+		return fmt.Errorf("llm setup: %w", err)
+	}
+
+	engine := synth.NewEngine(llmClient, newEutilsClient(), cfg.synthCfg)
+
+	var result *synth.Result
+	if cfg.useTUI {
+		result, err = runSynthWithTUI(cmd.Context(), engine, cfg)
+	} else {
+		result, err = runSynthPlain(cmd.Context(), engine, cfg)
+	}
+	if err != nil {
+		return fmt.Errorf("synthesize: %w", err)
+	}
+
+	return handleSynthResult(cmd.Context(), result)
 }
 
 func outputJSON(result *synth.Result) error {
