@@ -16,7 +16,6 @@ import (
 var (
 	cyan       = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
 	bold       = lipgloss.NewStyle().Bold(true)
-	boldCyan   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
 	dim        = lipgloss.NewStyle().Faint(true)
 	green      = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
 	yellow     = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))

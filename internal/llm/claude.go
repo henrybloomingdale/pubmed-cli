@@ -173,10 +173,10 @@ func (c *ClaudeClient) Complete(ctx context.Context, prompt string, maxTokens in
 func (c *ClaudeClient) handleError(err error, ctx context.Context) error {
 	// Check for context timeout/cancellation
 	if ctx.Err() == context.DeadlineExceeded {
-		return fmt.Errorf("Claude CLI timed out after %d seconds", int(c.timeout.Seconds()))
+		return fmt.Errorf("claude CLI timed out after %d seconds", int(c.timeout.Seconds()))
 	}
 	if ctx.Err() == context.Canceled {
-		return fmt.Errorf("Claude CLI request was cancelled")
+		return fmt.Errorf("claude CLI request was cancelled")
 	}
 
 	// Check for exit error with stderr
@@ -189,19 +189,19 @@ func (c *ClaudeClient) handleError(err error, ctx context.Context) error {
 			strings.Contains(stderr, "unauthorized") ||
 			strings.Contains(stderr, "auth") ||
 			exitErr.ExitCode() == 1 && strings.Contains(stderr, "account") {
-			return fmt.Errorf("Claude CLI not authenticated - run 'claude login'")
+			return fmt.Errorf("claude CLI not authenticated - run 'claude login'")
 		}
 
 		// Check for rate limiting
 		if strings.Contains(stderr, "rate limit") || strings.Contains(stderr, "too many requests") {
-			return fmt.Errorf("Claude CLI rate limited - please wait and retry")
+			return fmt.Errorf("claude CLI rate limited - please wait and retry")
 		}
 
 		// Generic exit error with details
-		return fmt.Errorf("Claude CLI failed (exit %d): %s", exitErr.ExitCode(), string(exitErr.Stderr))
+		return fmt.Errorf("claude CLI failed (exit %d): %s", exitErr.ExitCode(), string(exitErr.Stderr))
 	}
 
-	return fmt.Errorf("Claude CLI error: %w", err)
+	return fmt.Errorf("claude CLI error: %w", err)
 }
 
 // CompleteMessages implements multi-turn for compatibility.
