@@ -1,4 +1,4 @@
-.PHONY: build test test-integration install lint clean release
+.PHONY: build test test-integration install lint clean release publish
 
 VERSION := 0.3.0
 BINARY := pubmed
@@ -38,3 +38,9 @@ coverage:
 	go test -short -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
+
+# Full release: build, tag, upload, update homebrew
+# Usage: make publish V=0.4.0
+publish:
+	@if [ -z "$(V)" ]; then echo "Usage: make publish V=X.Y.Z"; exit 1; fi
+	./scripts/release.sh $(V)
