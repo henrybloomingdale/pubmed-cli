@@ -279,6 +279,97 @@ func formatLinksHuman(w io.Writer, result *eutils.LinkResult, linkType string) e
 	return nil
 }
 
+// FormatLinksWithArticles writes link results with full article details for human mode.
+func FormatLinksWithArticles(w io.Writer, result *eutils.LinkResult, articles []eutils.Article, articleMap map[string]eutils.Article, linkType string, limit int) error {
+	emoji := "🔗"
+	title := linkType
+	switch linkType {
+	case "cited-by":
+		emoji = "📚"
+		title = "Cited By"
+	case "references":
+		emoji = "📖"
+		title = "References"
+	case "related":
+		emoji = "🔍"
+		title = "Related Articles"
+	}
+
+	if len(result.Links) == 0 {
+		fmt.Fprintf(w, "%s No %s results for PMID %s.\n", emoji, linkType, cyan.Render(result.SourceID))
+		return nil
+	}
+
+	showing := limit
+	if showing > len(result.Links) {
+		showing = len(result.Links)
+	}
+
+	fmt.Fprintf(w, "%s %s for PMID %s (%d total, showing %d)\n\n",
+		emoji,
+		bold.Render(title),
+		cyan.Render(result.SourceID),
+		len(result.Links),
+		showing)
+
+	// Check if we have scores
+	hasScores := false
+	for i := 0; i < showing; i++ {
+		if result.Links[i].Score > 0 {
+			hasScores = true
+			break
+		}
+	}
+
+	var rows [][]string
+	for i := 0; i < showing; i++ {
+		link := result.Links[i]
+		article, found := articleMap[link.ID]
+
+		titleText := dim.Render("(not found)")
+		yearText := ""
+		if found {
+			titleText = truncate(article.Title, 55)
+			yearText = article.Year
+		}
+
+		row := []string{
+			fmt.Sprintf("%d", i+1),
+			cyan.Render(link.ID),
+			titleText,
+			yearText,
+		}
+		if hasScores {
+			if link.Score > 0 {
+				row = append(row, dim.Render(fmt.Sprintf("%d", link.Score)))
+			} else {
+				row = append(row, "")
+			}
+		}
+		rows = append(rows, row)
+	}
+
+	headers := []string{"#", "PMID", "Title", "Year"}
+	if hasScores {
+		headers = append(headers, "Score")
+	}
+
+	t := table.New().
+		Headers(headers...).
+		Rows(rows...).
+		Border(lipgloss.NormalBorder()).
+		BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("8"))).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			if row == table.HeaderRow {
+				return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("4"))
+			}
+			return lipgloss.NewStyle()
+		})
+
+	fmt.Fprintln(w, t.Render())
+	return nil
+}
+
 // --- MeSH ---
 
 func formatMeSHHuman(w io.Writer, record *mesh.MeSHRecord) error {

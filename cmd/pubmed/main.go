@@ -193,7 +193,7 @@ var citedByCmd = &cobra.Command{
 			return fmt.Errorf("cited-by lookup failed: %w", err)
 		}
 
-		return output.FormatLinks(os.Stdout, result, "cited-by", outputCfg())
+		return formatLinkResults(cmd, client, result, "cited-by")
 	},
 }
 
@@ -211,7 +211,7 @@ var referencesCmd = &cobra.Command{
 			return fmt.Errorf("references lookup failed: %w", err)
 		}
 
-		return output.FormatLinks(os.Stdout, result, "references", outputCfg())
+		return formatLinkResults(cmd, client, result, "references")
 	},
 }
 
@@ -229,8 +229,49 @@ var relatedCmd = &cobra.Command{
 			return fmt.Errorf("related articles lookup failed: %w", err)
 		}
 
-		return output.FormatLinks(os.Stdout, result, "related", outputCfg())
+		return formatLinkResults(cmd, client, result, "related")
 	},
+}
+
+// formatLinkResults handles output for link commands, fetching article details for human mode.
+func formatLinkResults(cmd *cobra.Command, client *eutils.Client, result *eutils.LinkResult, linkType string) error {
+	cfg := outputCfg()
+
+	// For JSON or plain text, just output the links
+	if cfg.JSON || !cfg.Human {
+		return output.FormatLinks(os.Stdout, result, linkType, cfg)
+	}
+
+	// For human mode, fetch article details to show titles
+	if len(result.Links) == 0 {
+		return output.FormatLinks(os.Stdout, result, linkType, cfg)
+	}
+
+	// Collect PMIDs to fetch (respect limit)
+	limit := flagLimit
+	if limit > len(result.Links) {
+		limit = len(result.Links)
+	}
+	pmids := make([]string, limit)
+	for i := 0; i < limit; i++ {
+		pmids[i] = result.Links[i].ID
+	}
+
+	// Fetch article details
+	articles, err := client.Fetch(cmd.Context(), pmids)
+	if err != nil {
+		// Fall back to PMID-only display if fetch fails
+		return output.FormatLinks(os.Stdout, result, linkType, cfg)
+	}
+
+	// Build a map of PMID -> article for ordering
+	articleMap := make(map[string]eutils.Article)
+	for _, a := range articles {
+		articleMap[a.PMID] = a
+	}
+
+	// Create enriched link result with scores preserved
+	return output.FormatLinksWithArticles(os.Stdout, result, articles, articleMap, linkType, limit)
 }
 
 // meshCmd implements the mesh subcommand.
