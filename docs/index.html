@@ -3,392 +3,708 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>pubmed-cli Testing Guide</title>
+    <title>pubmed-cli: A Researcher's Guide to Literature Search from the Command Line</title>
     <style>
         :root {
-            --bg: #0d1117;
-            --card: #161b22;
-            --border: #30363d;
-            --text: #c9d1d9;
-            --text-muted: #8b949e;
-            --accent: #58a6ff;
-            --green: #3fb950;
-            --yellow: #d29922;
-            --red: #f85149;
+            --bg: #fafafa;
+            --card: #ffffff;
+            --border: #e1e4e8;
+            --text: #24292e;
+            --text-muted: #586069;
+            --accent: #0366d6;
+            --green: #28a745;
+            --code-bg: #1b1f23;
+            --code-text: #e1e4e8;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0d1117;
+                --card: #161b22;
+                --border: #30363d;
+                --text: #c9d1d9;
+                --text-muted: #8b949e;
+                --accent: #58a6ff;
+                --green: #3fb950;
+            }
         }
         * { box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
             background: var(--bg);
             color: var(--text);
-            line-height: 1.6;
-            padding: 2rem;
-            max-width: 1200px;
+            line-height: 1.8;
+            padding: 0;
+            margin: 0;
+        }
+        .container {
+            max-width: 800px;
             margin: 0 auto;
+            padding: 2rem;
         }
-        h1 { color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
-        h2 { color: var(--green); margin-top: 2rem; }
-        h3 { color: var(--text); margin-top: 1.5rem; }
-        .status { 
-            display: inline-block; 
-            padding: 2px 8px; 
-            border-radius: 4px; 
-            font-size: 0.8rem;
-            font-weight: 600;
+        header {
+            text-align: center;
+            padding: 3rem 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
         }
-        .status.pass { background: #238636; color: white; }
-        .status.warn { background: var(--yellow); color: black; }
-        .card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 1rem;
-            margin: 1rem 0;
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        h1, h2, h3 { line-height: 1.3; }
+        h2 {
+            color: var(--accent);
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 3rem;
+        }
+        h3 { margin-top: 2rem; }
+        p { margin: 1rem 0; }
+        .lead {
+            font-size: 1.15rem;
+            color: var(--text-muted);
         }
         pre {
-            background: #0d1117;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 1rem;
+            background: var(--code-bg);
+            color: var(--code-text);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
             overflow-x: auto;
             position: relative;
+            margin: 1.5rem 0;
         }
         code {
             font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
             font-size: 0.9rem;
         }
+        :not(pre) > code {
+            background: var(--border);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
         .copy-btn {
             position: absolute;
             top: 0.5rem;
             right: 0.5rem;
-            background: var(--border);
+            background: #30363d;
             border: none;
-            color: var(--text);
-            padding: 4px 8px;
+            color: #8b949e;
+            padding: 4px 10px;
             border-radius: 4px;
             cursor: pointer;
             font-size: 0.75rem;
         }
-        .copy-btn:hover { background: var(--accent); }
-        .copy-btn.copied { background: var(--green); }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1rem 0;
-        }
-        th, td {
-            border: 1px solid var(--border);
-            padding: 0.75rem;
-            text-align: left;
-        }
-        th { background: var(--card); }
-        .note {
-            background: #1f2937;
-            border-left: 4px solid var(--accent);
-            padding: 1rem;
-            margin: 1rem 0;
-        }
-        .warning {
-            background: #422006;
-            border-left: 4px solid var(--yellow);
-            padding: 1rem;
-            margin: 1rem 0;
-        }
-        details { margin: 0.5rem 0; }
-        summary { 
-            cursor: pointer; 
-            padding: 0.5rem;
+        .copy-btn:hover { background: #484f58; color: white; }
+        .copy-btn.copied { background: var(--green); color: white; }
+        .callout {
             background: var(--card);
-            border-radius: 4px;
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--accent);
+            border-radius: 6px;
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
         }
-        summary:hover { background: var(--border); }
+        .callout.tip { border-left-color: var(--green); }
+        .callout.warning { border-left-color: #d29922; }
+        .callout-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
         .output {
-            background: #1a1a2e;
+            background: #0d1117;
             border: 1px solid #30363d;
             border-radius: 6px;
             padding: 1rem;
-            margin-top: 0.5rem;
+            margin: 1rem 0;
             font-size: 0.85rem;
-            max-height: 300px;
-            overflow-y: auto;
+            color: #8b949e;
         }
+        .output-label {
+            font-size: 0.75rem;
+            color: #6e7681;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+        }
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.75rem 1rem;
+            text-align: left;
+        }
+        th { background: var(--card); font-weight: 600; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .toc {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+        .toc h3 { margin-top: 0; }
+        .toc ol { margin: 0; padding-left: 1.5rem; }
+        .toc li { margin: 0.5rem 0; }
+        .step-number {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            background: var(--accent);
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 28px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-right: 0.5rem;
+        }
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border);
+            margin-top: 4rem;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        .feature {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+        .feature-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+        .feature-title { font-weight: 600; }
     </style>
 </head>
 <body>
-    <h1>🧪 pubmed-cli Testing Guide</h1>
-    <p>Interactive testing guide for all pubmed-cli features. Click commands to copy.</p>
-    
-    <div class="note">
-        <strong>Prerequisites:</strong> Set your NCBI API key: <code>export NCBI_API_KEY="your-key"</code><br>
-        For LLM features, ensure <code>claude</code> CLI is installed and authenticated.
-    </div>
+    <header>
+        <h1>pubmed-cli</h1>
+        <p>Search PubMed, synthesize literature, and answer research questions — all from your terminal</p>
+    </header>
 
-    <h2>📋 Quick Status</h2>
-    <table>
-        <tr><th>Category</th><th>Status</th><th>Commands</th></tr>
-        <tr><td>Search & Fetch</td><td><span class="status pass">PASS</span></td><td>search, fetch, mesh</td></tr>
-        <tr><td>Link Discovery</td><td><span class="status pass">PASS</span></td><td>cited-by, references, related</td></tr>
-        <tr><td>Literature Synthesis</td><td><span class="status pass">PASS</span></td><td>synth, wizard</td></tr>
-        <tr><td>Question Answering</td><td><span class="status pass">PASS</span></td><td>qa</td></tr>
-        <tr><td>Configuration</td><td><span class="status pass">PASS</span></td><td>config</td></tr>
-        <tr><td>Output Formats</td><td><span class="status pass">PASS</span></td><td>JSON, CSV, BibTeX, RIS, DOCX</td></tr>
-    </table>
+    <div class="container">
+        
+        <h2>What is pubmed-cli?</h2>
+        
+        <p class="lead">
+            If you've ever spent hours clicking through PubMed, copying article information into spreadsheets, 
+            or manually formatting references, this tool is for you.
+        </p>
+        
+        <p>
+            <strong>pubmed-cli</strong> is a command-line tool that lets you search PubMed, fetch article details, 
+            and even generate literature syntheses with citations — all without opening a web browser. 
+            It's designed for researchers, clinicians, and anyone who works with biomedical literature regularly.
+        </p>
+        
+        <p>
+            Think of it as having a research assistant that can instantly search millions of articles, 
+            find related papers, and summarize findings for you. Instead of clicking through web pages, 
+            you type simple commands and get structured results you can immediately use.
+        </p>
 
-    <h2>🔍 Search Commands</h2>
-    
-    <h3>Basic Search</h3>
-    <div class="card">
-        <pre><code>pubmed search "fragile X syndrome" --limit 5 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-        <details>
-            <summary>Expected Output</summary>
-            <div class="output"><pre>{"count": 8076, "ids": ["41651661", "41651254", ...], "query_translation": "..."}</pre></div>
-        </details>
-    </div>
+        <div class="feature-grid">
+            <div class="feature">
+                <div class="feature-icon">🔍</div>
+                <div class="feature-title">Search</div>
+                <p style="font-size: 0.9rem; color: var(--text-muted);">Query PubMed with filters for year, type, and more</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">📄</div>
+                <div class="feature-title">Fetch</div>
+                <p style="font-size: 0.9rem; color: var(--text-muted);">Get full article details including abstracts</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🔗</div>
+                <div class="feature-title">Discover</div>
+                <p style="font-size: 0.9rem; color: var(--text-muted);">Find citations, references, and related articles</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">📝</div>
+                <div class="feature-title">Synthesize</div>
+                <p style="font-size: 0.9rem; color: var(--text-muted);">Generate summaries with proper citations</p>
+            </div>
+        </div>
 
-    <h3>Human-Readable Output</h3>
-    <div class="card">
-        <pre><code>pubmed search "CRISPR" --limit 3 --human</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
+        <nav class="toc">
+            <h3>📖 Table of Contents</h3>
+            <ol>
+                <li><a href="#why">Why Use a Command-Line Tool?</a></li>
+                <li><a href="#install">Installation (Step by Step)</a></li>
+                <li><a href="#first-search">Your First Search</a></li>
+                <li><a href="#reading-results">Understanding the Results</a></li>
+                <li><a href="#fetching">Fetching Article Details</a></li>
+                <li><a href="#filtering">Filtering Your Searches</a></li>
+                <li><a href="#exporting">Exporting to Files</a></li>
+                <li><a href="#links">Finding Related Articles</a></li>
+                <li><a href="#mesh">Looking Up MeSH Terms</a></li>
+                <li><a href="#synthesis">Literature Synthesis (Advanced)</a></li>
+                <li><a href="#qa">Answering Research Questions (Advanced)</a></li>
+                <li><a href="#reference">Quick Reference</a></li>
+            </ol>
+        </nav>
 
-    <h3>Year Filter</h3>
-    <div class="card">
-        <pre><code>pubmed search "autism intervention" --year 2024-2025 --limit 5 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
+        <h2 id="why">Why Use a Command-Line Tool?</h2>
+        
+        <p>
+            You might be wondering: "Why would I type commands when I can just use the PubMed website?" 
+            Fair question. Here's why researchers find command-line tools valuable:
+        </p>
+        
+        <p>
+            <strong>Speed.</strong> Once you learn the basic commands, searching becomes nearly instant. 
+            No waiting for pages to load, no clicking through menus. Type a command, get results.
+        </p>
+        
+        <p>
+            <strong>Reproducibility.</strong> Commands can be saved, shared, and re-run. 
+            If a colleague asks "how did you find those papers?", you can share the exact command. 
+            This matters for systematic reviews and meta-analyses where search methodology must be documented.
+        </p>
+        
+        <p>
+            <strong>Automation.</strong> Need to run the same search every week? 
+            Commands can be scheduled to run automatically. Need to search for 50 different terms? 
+            Write a simple script instead of clicking 50 times.
+        </p>
+        
+        <p>
+            <strong>Integration.</strong> Results come as structured data (JSON) that can feed directly 
+            into other tools — reference managers, analysis scripts, or AI assistants.
+        </p>
 
-    <h3>Publication Type Filters</h3>
-    <div class="card">
-        <pre><code># Reviews only
-pubmed search "diabetes treatment" --type review --limit 3 --json
+        <h2 id="install">Installation</h2>
+        
+        <p>
+            Before we begin, let's get the tool installed on your computer. 
+            Don't worry if you've never installed software this way — we'll go step by step.
+        </p>
 
-# Clinical trials
-pubmed search "COVID vaccine" --type trial --year 2024-2025 --limit 3 --json
+        <h3><span class="step-number">1</span> Open Terminal</h3>
+        
+        <p>
+            The <strong>Terminal</strong> is an application on your Mac that lets you type commands. 
+            Think of it as a text-based way to control your computer.
+        </p>
+        
+        <p>To open Terminal:</p>
+        <ul>
+            <li>Press <code>Cmd + Space</code> to open Spotlight</li>
+            <li>Type "Terminal" and press Enter</li>
+        </ul>
+        
+        <p>
+            You'll see a window with a blinking cursor. This is where you'll type commands. 
+            When we show commands in gray boxes below, you'll type them here and press Enter.
+        </p>
 
-# Meta-analyses
-pubmed search "statin cardiovascular" --type meta-analysis --limit 3 --human</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
+        <h3><span class="step-number">2</span> Install Homebrew (if needed)</h3>
+        
+        <p>
+            <strong>Homebrew</strong> is a tool that makes installing software on Mac easy. 
+            It's like an app store for command-line tools. Many researchers use it to install 
+            scientific software, programming languages, and utilities.
+        </p>
+        
+        <p>First, check if you already have Homebrew by typing:</p>
+        
+        <pre><code>brew --version</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        
+        <p>If you see a version number (like "Homebrew 4.2.0"), you're all set — skip to Step 3.</p>
+        
+        <p>If you see "command not found", install Homebrew by pasting this command:</p>
+        
+        <pre><code>/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        
+        <p>
+            This will ask for your password (the one you use to log into your Mac) and take a few minutes. 
+            The password won't show as you type — that's normal for security. Just type it and press Enter.
+        </p>
 
-    <h3>Sort Options</h3>
-    <div class="card">
-        <pre><code># Sort by date (newest first)
-pubmed search "machine learning radiology" --sort date --limit 3 --json
+        <h3><span class="step-number">3</span> Install pubmed-cli</h3>
+        
+        <p>Now we can install pubmed-cli with two commands:</p>
+        
+        <pre><code>brew tap henrybloomingdale/tools
+brew install pubmed-cli</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        
+        <p>The first command tells Homebrew where to find our tool. The second installs it.</p>
 
-# Sort by citations
-pubmed search "CRISPR" --sort cited --limit 5 --human</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
+        <h3><span class="step-number">4</span> Verify Installation</h3>
+        
+        <pre><code>pubmed --help</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        
+        <p>You should see a list of available commands. If you do, congratulations — you're ready to go!</p>
 
-    <h3>CSV Export</h3>
-    <div class="card">
-        <pre><code>pubmed search "FMRP" --limit 10 --csv results.csv</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
+        <div class="callout tip">
+            <div class="callout-title">💡 Optional: Get an NCBI API Key</div>
+            <p>
+                PubMed allows 3 searches per second without a key, and 10 per second with one. 
+                For casual use, you don't need a key. For heavy use, get a free key at 
+                <a href="https://www.ncbi.nlm.nih.gov/account/" target="_blank">ncbi.nlm.nih.gov/account</a>.
+            </p>
+            <p>Once you have a key, set it in Terminal:</p>
+            <pre style="margin-bottom: 0;"><code>export NCBI_API_KEY="your-key-here"</code></pre>
+        </div>
 
-    <h3>Special Characters & Boolean</h3>
-    <div class="card">
-        <pre><code># Greek characters
-pubmed search 'IL-6 AND (TNF-α OR TNF-alpha)' --limit 3 --json
+        <h2 id="first-search">Your First Search</h2>
+        
+        <p>Let's search for articles about a topic. The basic format is:</p>
+        
+        <pre><code>pubmed search "your search terms"</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        
+        <p>For example, to search for articles about fragile X syndrome:</p>
+        
+        <pre><code>pubmed search "fragile X syndrome"</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        
+        <div class="output">
+            <div class="output-label">Output</div>
+            <pre style="margin: 0; background: transparent; padding: 0;">Found 8076 results (showing 20)
+Query: "fragile x syndrome"[MeSH Terms] OR "fragile x syndrome"[All Fields]
 
-# Quoted phrases
-pubmed search '"machine learning" AND "deep learning"' --limit 3 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
+  1. PMID: 41651661
+  2. PMID: 41651254
+  3. PMID: 41648852
+  ...</pre>
+        </div>
+        
+        <p>
+            The tool searched PubMed, found 8,076 articles, and listed the first 20 by their PMID 
+            (PubMed ID — the unique number that identifies each article).
+        </p>
 
-    <h2>📄 Fetch Commands</h2>
+        <h2 id="reading-results">Understanding the Results</h2>
+        
+        <p>
+            The default output shows just PMIDs, which isn't very informative. 
+            Let's see more details with the <code>--human</code> flag:
+        </p>
+        
+        <pre><code>pubmed search "fragile X syndrome" --limit 5 --human</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        
+        <div class="output">
+            <div class="output-label">Output</div>
+            <pre style="margin: 0; background: transparent; padding: 0;">🔬 Found 8076 results (showing 5)
 
-    <h3>Single Article</h3>
-    <div class="card">
-        <pre><code>pubmed fetch 38000001 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
+┌────────┬──────────────────────────────────────────────────┬────┬───────────────┐
+│PMID    │Title                                             │Year│Type           │
+├────────┼──────────────────────────────────────────────────┼────┼───────────────┤
+│41651254│Hippocampal glial alterations are associated with…│2026│Journal Article│
+│41648852│Genetic diagnosis of three intellectually disable…│2025│Journal Article│
+│41645177│Docking-guided and phosphomimetic rational engine…│2026│Journal Article│
+└────────┴──────────────────────────────────────────────────┴────┴───────────────┘</pre>
+        </div>
+        
+        <p>Much better! Now we can see titles, years, and article types at a glance.</p>
+        
+        <div class="callout">
+            <div class="callout-title">Understanding the Flags</div>
+            <p>
+                Flags are options that modify how a command works. They start with <code>--</code> (two dashes).
+            </p>
+            <ul style="margin-bottom: 0;">
+                <li><code>--limit 5</code> — Show only 5 results instead of the default 20</li>
+                <li><code>--human</code> — Format output as a readable table</li>
+            </ul>
+        </div>
 
-    <h3>Full Abstract (Human)</h3>
-    <div class="card">
+        <h2 id="fetching">Fetching Article Details</h2>
+        
+        <p>
+            Once you find an interesting PMID, you can get full details including the abstract. 
+            The <code>fetch</code> command retrieves complete article information:
+        </p>
+        
         <pre><code>pubmed fetch 41651254 --human --full</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        
+        <p>This shows:</p>
+        <ul>
+            <li>Full title</li>
+            <li>All authors with affiliations</li>
+            <li>Journal name and publication date</li>
+            <li>DOI (digital object identifier)</li>
+            <li>Complete abstract</li>
+        </ul>
+        
+        <p>You can fetch multiple articles at once by separating PMIDs with commas:</p>
+        
+        <pre><code>pubmed fetch 41651254,41648852,41645177 --human</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+
+        <h2 id="filtering">Filtering Your Searches</h2>
+        
+        <p>Real research often requires more specific searches. Here's how to narrow results:</p>
+        
+        <h3>Filter by Year</h3>
+        <pre><code>pubmed search "autism therapy" --year 2023-2025 --limit 10 --human</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        
+        <h3>Filter by Publication Type</h3>
+        <pre><code># Only review articles
+pubmed search "diabetes treatment" --type review --limit 10 --human
+
+# Only clinical trials
+pubmed search "SSRI depression" --type trial --limit 10 --human
+
+# Only meta-analyses
+pubmed search "statin cardiovascular" --type meta-analysis --limit 10 --human</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        
+        <h3>Sort Results</h3>
+        <pre><code># Most recent first
+pubmed search "CRISPR" --sort date --limit 10 --human
+
+# Most cited first
+pubmed search "CRISPR" --sort cited --limit 10 --human</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        
+        <h3>Combine Filters</h3>
+        <pre><code>pubmed search "COVID vaccine" --year 2024-2025 --type trial --sort date --limit 10 --human</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+
+        <h2 id="exporting">Exporting to Files</h2>
+        
+        <p>For systematic reviews or when you need to share results, export to files:</p>
+        
+        <h3>CSV (for Excel/Spreadsheets)</h3>
+        <pre><code>pubmed search "autism biomarkers" --limit 100 --csv results.csv</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        <p>Open <code>results.csv</code> in Excel to see a spreadsheet with PMID, Title, Year, Journal, DOI, and Type.</p>
+        
+        <h3>JSON (for Programming/Analysis)</h3>
+        <pre><code>pubmed search "autism biomarkers" --limit 100 --json > results.json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        <p>JSON is a structured format that programming languages and AI tools can easily read.</p>
+
+        <h2 id="links">Finding Related Articles</h2>
+        
+        <p>PubMed tracks relationships between articles. Use these to expand your literature search:</p>
+        
+        <h3>Who Cited This Article?</h3>
+        <pre><code>pubmed cited-by 38000001 --limit 10 --human</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        <p>Shows newer articles that reference this one — great for seeing how research has evolved.</p>
+        
+        <h3>What Does This Article Cite?</h3>
+        <pre><code>pubmed references 38000001 --limit 10 --human</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        <p>Shows the article's bibliography — useful for finding foundational papers.</p>
+        
+        <h3>Similar Articles</h3>
+        <pre><code>pubmed related 38000001 --limit 10 --human</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        <p>PubMed's algorithm finds articles on similar topics, even if they don't directly cite each other.</p>
+
+        <h2 id="mesh">Looking Up MeSH Terms</h2>
+        
+        <p>
+            MeSH (Medical Subject Headings) is PubMed's controlled vocabulary. 
+            Using MeSH terms makes searches more precise. Look up terms like this:
+        </p>
+        
+        <pre><code>pubmed mesh "depression"</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        
+        <div class="output">
+            <div class="output-label">Output</div>
+            <pre style="margin: 0; background: transparent; padding: 0;">{
+  "ui": "D003863",
+  "name": "Depression",
+  "scope_note": "Depressive states usually of moderate intensity...",
+  "tree_numbers": ["F01.145.126.350", "F01.470.282"],
+  "entry_terms": ["Depressive Symptoms", "Emotional Depression", ...]
+}</pre>
+        </div>
+        
+        <p>
+            The <code>entry_terms</code> show synonyms that PubMed recognizes. 
+            The <code>tree_numbers</code> show where this term sits in MeSH's hierarchy.
+        </p>
+
+        <h2 id="synthesis">Literature Synthesis</h2>
+        
+        <div class="callout warning">
+            <div class="callout-title">⚠️ Advanced Feature — Requires Additional Setup</div>
+            <p>
+                Literature synthesis uses AI to read papers and generate summaries. 
+                This requires either the Claude CLI (free with a Claude account) or an OpenAI API key.
+            </p>
+        </div>
+        
+        <p>
+            The <code>synth</code> command searches PubMed, scores papers for relevance, 
+            and generates a narrative synthesis with proper citations:
+        </p>
+        
+        <pre><code>pubmed synth "FMRP function in synaptic plasticity" --papers 5 --words 200 --claude</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        
+        <div class="output">
+            <div class="output-label">Output</div>
+            <pre style="margin: 0; background: transparent; padding: 0;"># FMRP function in synaptic plasticity
+
+*Searched 30 papers, scored 30, used 5*
+
+## Synthesis
+
+FMRP plays critical roles in regulating synaptic structure and function 
+through multiple mechanisms. At postsynaptic sites, FMRP deficiency leads 
+to aberrant postsynaptic organization... (Zhang et al., 2026). FMRP also 
+controls surface expression of NMDA receptor subunits... (Corti et al., 2025).
+
+## References
+
+1. Zhang, Z., et al. (2026). Autophagy controls hippocampal postsynaptic 
+   organization... Molecular psychiatry. [PMID: 40931164]
+...</pre>
+        </div>
+        
+        <h3>Export Options</h3>
+        <pre><code># Word document
+pubmed synth "ketamine for depression" --papers 5 --docx review.docx --claude
+
+# BibTeX (for LaTeX)
+pubmed synth "ketamine for depression" --papers 5 --bibtex refs.bib --claude
+
+# RIS (for EndNote/Zotero)
+pubmed synth "ketamine for depression" --papers 5 --ris refs.ris --claude</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+
+        <h2 id="qa">Answering Research Questions</h2>
+        
+        <p>
+            The <code>qa</code> command answers yes/no research questions, 
+            automatically deciding whether to use its training knowledge or search PubMed:
+        </p>
+        
+        <pre><code>pubmed qa "Does FMRP regulate synaptic plasticity?" --claude</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
+        
+        <div class="output">
+            <div class="output-label">Output</div>
+            <pre style="margin: 0; background: transparent; padding: 0;">🧠 Answer: YES
+   Strategy: retrieval
+   Confidence: 8/10
+   Sources: PMID 41401891, 41276503, 41177899</pre>
+        </div>
+        
+        <p>
+            The tool recognized this as a factual question, searched PubMed, 
+            and synthesized an answer from recent literature.
+        </p>
+
+        <h2 id="reference">Quick Reference</h2>
+        
+        <table>
+            <tr>
+                <th>Command</th>
+                <th>What It Does</th>
+                <th>Example</th>
+            </tr>
+            <tr>
+                <td><code>search</code></td>
+                <td>Search PubMed</td>
+                <td><code>pubmed search "autism" --limit 10</code></td>
+            </tr>
+            <tr>
+                <td><code>fetch</code></td>
+                <td>Get article details</td>
+                <td><code>pubmed fetch 12345678 --human</code></td>
+            </tr>
+            <tr>
+                <td><code>mesh</code></td>
+                <td>Look up MeSH terms</td>
+                <td><code>pubmed mesh "depression"</code></td>
+            </tr>
+            <tr>
+                <td><code>cited-by</code></td>
+                <td>Find citing articles</td>
+                <td><code>pubmed cited-by 12345678</code></td>
+            </tr>
+            <tr>
+                <td><code>references</code></td>
+                <td>Find cited articles</td>
+                <td><code>pubmed references 12345678</code></td>
+            </tr>
+            <tr>
+                <td><code>related</code></td>
+                <td>Find similar articles</td>
+                <td><code>pubmed related 12345678</code></td>
+            </tr>
+            <tr>
+                <td><code>synth</code></td>
+                <td>Generate synthesis</td>
+                <td><code>pubmed synth "topic" --claude</code></td>
+            </tr>
+            <tr>
+                <td><code>qa</code></td>
+                <td>Answer questions</td>
+                <td><code>pubmed qa "question?" --claude</code></td>
+            </tr>
+            <tr>
+                <td><code>config</code></td>
+                <td>Manage settings</td>
+                <td><code>pubmed config show</code></td>
+            </tr>
+        </table>
+        
+        <h3>Common Flags</h3>
+        <table>
+            <tr>
+                <th>Flag</th>
+                <th>What It Does</th>
+            </tr>
+            <tr>
+                <td><code>--human</code> or <code>-H</code></td>
+                <td>Pretty-print output as tables</td>
+            </tr>
+            <tr>
+                <td><code>--json</code></td>
+                <td>Output as JSON (for scripts)</td>
+            </tr>
+            <tr>
+                <td><code>--limit N</code></td>
+                <td>Return at most N results</td>
+            </tr>
+            <tr>
+                <td><code>--year YYYY-YYYY</code></td>
+                <td>Filter by publication year</td>
+            </tr>
+            <tr>
+                <td><code>--type TYPE</code></td>
+                <td>Filter by type (review, trial, meta-analysis)</td>
+            </tr>
+            <tr>
+                <td><code>--sort ORDER</code></td>
+                <td>Sort by relevance, date, or cited</td>
+            </tr>
+            <tr>
+                <td><code>--csv FILE</code></td>
+                <td>Export to CSV file</td>
+            </tr>
+            <tr>
+                <td><code>--full</code></td>
+                <td>Show full abstracts (with --human)</td>
+            </tr>
+        </table>
+
+        <div class="callout tip">
+            <div class="callout-title">💡 Getting Help</div>
+            <p>Every command has built-in help. Just add <code>--help</code>:</p>
+            <pre style="margin-bottom: 0;"><code>pubmed search --help
+pubmed synth --help</code></pre>
+        </div>
+
     </div>
 
-    <h3>Batch Fetch</h3>
-    <div class="card">
-        <pre><code>pubmed fetch 41651254,41645177,41644074 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
-
-    <h2>🔗 Link Discovery</h2>
-
-    <h3>Cited By</h3>
-    <div class="card">
-        <pre><code>pubmed cited-by 38000001 --limit 5 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
-
-    <h3>References</h3>
-    <div class="card">
-        <pre><code>pubmed references 38000001 --limit 10 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
-
-    <h3>Related Articles</h3>
-    <div class="card">
-        <pre><code>pubmed related 38000001 --limit 5 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-        <details>
-            <summary>Expected Output</summary>
-            <div class="output"><pre>{"source_id": "38000001", "links": [{"id": "39212176", "score": 25466406}, ...]}</pre></div>
-        </details>
-    </div>
-
-    <h2>🏷️ MeSH Lookup</h2>
-    <div class="card">
-        <pre><code>pubmed mesh "autism" --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-        <details>
-            <summary>Expected Output</summary>
-            <div class="output"><pre>{
-  "ui": "D001321",
-  "name": "Autistic Disorder",
-  "scope_note": "A disorder beginning in childhood...",
-  "tree_numbers": ["F03.625.164.113.500"],
-  "entry_terms": ["Disorder, Autistic", "Autism", ...]
-}</pre></div>
-        </details>
-    </div>
-
-    <div class="card">
-        <pre><code>pubmed mesh "depression" --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
-
-    <h2>📝 Literature Synthesis</h2>
-    
-    <div class="warning">
-        <strong>Note:</strong> Synthesis requires an LLM backend. Use <code>--claude</code> for Claude CLI or set <code>LLM_API_KEY</code> for OpenAI-compatible APIs.
-    </div>
-
-    <h3>Basic Synthesis</h3>
-    <div class="card">
-        <pre><code>pubmed synth "FMRP synaptic function" --papers 3 --words 100 --claude</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
-
-    <h3>Single Paper Deep Dive</h3>
-    <div class="card">
-        <pre><code>pubmed synth --pmid 41401891 --words 150 --claude</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
-
-    <h3>BibTeX + RIS Export</h3>
-    <div class="card">
-        <pre><code>pubmed synth "ketamine depression" --papers 3 --bibtex refs.bib --ris refs.ris --claude</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
-
-    <h3>Word Document Output</h3>
-    <div class="card">
-        <pre><code>pubmed synth "ADHD stimulant medications" --papers 3 --words 100 --docx review.docx --claude</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-        <p style="color: var(--text-muted); font-size: 0.9rem;">Requires <code>pandoc</code> installed.</p>
-    </div>
-
-    <h3>JSON Output (for agents)</h3>
-    <div class="card">
-        <pre><code>pubmed synth "autism biomarkers" --papers 5 --claude --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
-
-    <h2>❓ Question Answering</h2>
-
-    <h3>Basic QA</h3>
-    <div class="card">
-        <pre><code>pubmed qa "Does FMRP regulate synaptic plasticity?" --claude --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-        <details>
-            <summary>Expected Output</summary>
-            <div class="output"><pre>{
-  "question": "Does FMRP regulate synaptic plasticity?",
-  "answer": "yes",
-  "confidence": 5,
-  "strategy": "retrieval",
-  "novel_detected": false,
-  "source_pmids": ["41401891", "41276503", "41177899"],
-  "context": "..."
-}</pre></div>
-        </details>
-    </div>
-
-    <h3>Human-Readable Output</h3>
-    <div class="card">
-        <pre><code>pubmed qa "Is metformin effective for type 2 diabetes?" --claude --human</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-        <details>
-            <summary>Expected Output</summary>
-            <div class="output"><pre>🧠 Answer: YES
-   Strategy: parametric
-   Confidence: 10/10</pre></div>
-        </details>
-    </div>
-
-    <h3>Force Retrieval (Novel Questions)</h3>
-    <div class="card">
-        <pre><code>pubmed qa "Does the 2025 RECOVER trial show paxlovid helps long COVID?" --retrieve --claude --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
-
-    <h3>Force Parametric (Skip Retrieval)</h3>
-    <div class="card">
-        <pre><code>pubmed qa "Does aspirin reduce heart attack risk?" --parametric --claude --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
-
-    <h3>Custom Confidence Threshold</h3>
-    <div class="card">
-        <pre><code>pubmed qa "Does lithium prevent suicide in bipolar disorder?" --confidence 9 --explain --claude --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-        <p style="color: var(--text-muted); font-size: 0.9rem;">Higher threshold = more likely to trigger retrieval.</p>
-    </div>
-
-    <h2>⚙️ Configuration</h2>
-
-    <h3>Show Current Config</h3>
-    <div class="card">
-        <pre><code>pubmed config show</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
-
-    <h3>Interactive Config Editor</h3>
-    <div class="card">
-        <pre><code>pubmed config set</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
-
-    <h3>Reset to Defaults</h3>
-    <div class="card">
-        <pre><code>pubmed config reset</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
-
-    <h2>🔧 Edge Cases</h2>
-
-    <h3>Empty Results</h3>
-    <div class="card">
-        <pre><code>pubmed search "xyznonexistentterm123abc" --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-        <details>
-            <summary>Expected Output</summary>
-            <div class="output"><pre>{"count": 0, "ids": [], "query_translation": "xyznonexistentterm123abc", ...}</pre></div>
-        </details>
-    </div>
-
-    <h3>Invalid PMID</h3>
-    <div class="card">
-        <pre><code>pubmed fetch 99999999999 --json</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-        <details>
-            <summary>Expected Output</summary>
-            <div class="output"><pre>[]</pre></div>
-        </details>
-    </div>
-
-    <h2>🐚 Shell Completion</h2>
-    <div class="card">
-        <pre><code># Bash
-pubmed completion bash > /usr/local/etc/bash_completion.d/pubmed
-
-# Zsh
-pubmed completion zsh > "${fpath[1]}/_pubmed"
-
-# Fish
-pubmed completion fish > ~/.config/fish/completions/pubmed.fish</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
-
-    <h2>📊 Full Test Suite</h2>
-    <div class="card">
-        <pre><code># Run all tests in sequence
-pubmed search "test" --limit 1 --json && \
-pubmed fetch 38000001 --json | head -5 && \
-pubmed mesh "cancer" --json && \
-pubmed cited-by 38000001 --limit 3 --json && \
-pubmed config show && \
-echo "✅ All basic tests passed"</code><button class="copy-btn" onclick="copyCmd(this)">Copy</button></pre>
-    </div>
-
-    <hr style="margin: 3rem 0; border-color: var(--border);">
-    <p style="color: var(--text-muted); text-align: center;">
-        pubmed-cli v0.5.1 · <a href="https://github.com/henrybloomingdale/pubmed-cli" style="color: var(--accent);">GitHub</a> · Last tested: 2026-02-07
-    </p>
+    <footer>
+        <p>
+            pubmed-cli is open source · 
+            <a href="https://github.com/henrybloomingdale/pubmed-cli">GitHub</a> · 
+            Created for researchers who value efficiency
+        </p>
+    </footer>
 
     <script>
         function copyCmd(btn) {
