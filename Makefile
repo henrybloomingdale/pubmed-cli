@@ -1,6 +1,6 @@
 .PHONY: build test test-integration install lint clean release publish
 
-VERSION := 0.5.0
+VERSION := 0.5.1
 BINARY := pubmed
 PKG := ./cmd/pubmed
 
