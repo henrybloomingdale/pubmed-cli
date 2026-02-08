@@ -13,13 +13,19 @@ import (
 
 var scoreRe = regexp.MustCompile(`\b(10|[1-9])\b`)
 
+// TokenCount holds input and output token estimates for a single LLM call.
+type TokenCount struct {
+	Input  int
+	Output int
+}
+
 // scoreArticleRelevance asks the LLM to rate relevance of an article to the question.
-func scoreArticleRelevance(ctx context.Context, llm LLMClient, question string, article *eutils.Article) (int, int, error) {
+func scoreArticleRelevance(ctx context.Context, llm LLMClient, question string, article *eutils.Article) (int, TokenCount, error) {
 	if llm == nil {
-		return 0, 0, errors.New("LLM client is nil")
+		return 0, TokenCount{}, errors.New("LLM client is nil")
 	}
 	if article == nil {
-		return 0, 0, errors.New("article is nil")
+		return 0, TokenCount{}, errors.New("article is nil")
 	}
 
 	prompt := fmt.Sprintf(`Rate how relevant this paper is to the research question.
@@ -39,15 +45,18 @@ Respond with only the number (1-10):`, question, article.Title, truncate(article
 
 	resp, err := llm.Complete(ctx, prompt, 10)
 	if err != nil {
-		return 0, 0, err
+		return 0, TokenCount{}, err
 	}
 
 	// Parse score from response.
 	score := parseScore(resp)
 
-	// Very rough token estimate.
-	tokensUsed := len(prompt)/4 + 5
-	return score, tokensUsed, nil
+	// Estimate tokens: ~4 characters per token for English text.
+	tokens := TokenCount{
+		Input:  len(prompt) / 4,
+		Output: max(len(resp)/4, 1), // At least 1 token for the score
+	}
+	return score, tokens, nil
 }
 
 func parseScore(resp string) int {

@@ -201,8 +201,11 @@ func TestScoreArticleRelevance(t *testing.T) {
 				t.Errorf("score = %d, want %d", score, tc.expectedScore)
 			}
 
-			if tokens <= 0 {
-				t.Error("expected positive token count")
+			if tokens.Input <= 0 {
+				t.Error("expected positive input token count")
+			}
+			if tokens.Output <= 0 {
+				t.Error("expected positive output token count")
 			}
 		})
 	}

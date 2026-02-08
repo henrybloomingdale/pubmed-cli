@@ -208,12 +208,13 @@ func (e *Engine) Synthesize(ctx context.Context, question string) (*Result, erro
 	if n := len(articles); n > 0 {
 		e.report(ProgressUpdate{Phase: ProgressScore, Message: fmt.Sprintf("Scoring paper %d/%d for relevance...", 1, n), Current: 0, Total: n})
 	}
-	scored, tokensUsed, err := e.scoreRelevance(ctx, question, articles)
+	scored, scoringTokens, err := e.scoreRelevance(ctx, question, articles)
 	if err != nil {
 		return nil, fmt.Errorf("relevance scoring: %w", err)
 	}
 	result.PapersScored = len(scored)
-	result.Tokens.Input += tokensUsed
+	result.Tokens.Input += scoringTokens.Input
+	result.Tokens.Output += scoringTokens.Output
 
 	// Step 4: Filter and sort by relevance
 	e.report(ProgressUpdate{Phase: ProgressFilter, Message: fmt.Sprintf("Filtering to top %d papers...", e.cfg.PapersToUse)})
@@ -341,14 +342,14 @@ Write a cohesive summary paragraph. Cite as (%s).`,
 	return result, nil
 }
 
-func (e *Engine) scoreRelevance(ctx context.Context, question string, articles []eutils.Article) ([]ScoredPaper, int, error) {
+func (e *Engine) scoreRelevance(ctx context.Context, question string, articles []eutils.Article) ([]ScoredPaper, TokenUsage, error) {
 	if e == nil || e.llm == nil {
-		return nil, 0, errors.New("LLM client is nil")
+		return nil, TokenUsage{}, errors.New("LLM client is nil")
 	}
 	question = strings.TrimSpace(question)
 
 	scored := make([]ScoredPaper, 0, len(articles))
-	totalTokens := 0
+	totalTokens := TokenUsage{}
 	var firstErr error
 	errCount := 0
 	total := len(articles)
@@ -371,7 +372,8 @@ func (e *Engine) scoreRelevance(ctx context.Context, question string, articles [
 			}
 			score = 5
 		}
-		totalTokens += tokens
+		totalTokens.Input += tokens.Input
+		totalTokens.Output += tokens.Output
 		scored = append(scored, ScoredPaper{Article: *article, RelevanceScore: score})
 
 		// Emit a second event after scoring so the progress bar can advance.
