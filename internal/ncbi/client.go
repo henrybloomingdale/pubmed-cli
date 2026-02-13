@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -28,6 +30,11 @@ const (
 
 	// DefaultMaxResponseBytes is the maximum response body size (50 MB).
 	DefaultMaxResponseBytes int64 = 50 * 1024 * 1024
+
+	// Retry policy for transient rate-limit responses.
+	ncbiMaxRetries    = 2
+	ncbiBaseRetryWait = 700 * time.Millisecond
+	ncbiMaxRetryWait  = 4 * time.Second
 )
 
 // BaseClient is a shared HTTP client for NCBI E-utilities with proper
@@ -101,12 +108,7 @@ func NewBaseClient(opts ...Option) *BaseClient {
 // DoGet performs a rate-limited GET request with common NCBI parameters
 // and response size limits. Returns the response body.
 func (c *BaseClient) DoGet(ctx context.Context, endpoint string, params url.Values) ([]byte, error) {
-	// Wait for rate limiter token (respects context cancellation).
-	if err := c.Limiter.Wait(ctx); err != nil {
-		return nil, fmt.Errorf("rate limit wait: %w", err)
-	}
-
-	// Add common NCBI params.
+	// Add common NCBI params once per request.
 	if c.APIKey != "" {
 		params.Set("api_key", c.APIKey)
 	}
@@ -123,33 +125,99 @@ func (c *BaseClient) DoGet(ctx context.Context, endpoint string, params url.Valu
 	}
 	fullURL := u + "?" + params.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
+	for attempt := 0; attempt <= ncbiMaxRetries; attempt++ {
+		// Wait for rate limiter token (respects context cancellation).
+		if err := c.Limiter.Wait(ctx); err != nil {
+			return nil, fmt.Errorf("rate limit wait: %w", err)
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("creating request: %w", err)
+		}
+
+		resp, err := c.HTTPClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("executing request: %w", err)
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests {
+			if attempt >= ncbiMaxRetries {
+				resp.Body.Close()
+				return nil, fmt.Errorf("NCBI rate limit exceeded (HTTP 429 after %d retries). Consider using an API key with --api-key or NCBI_API_KEY env var", ncbiMaxRetries)
+			}
+
+			retryAfter := retryAfterDuration(resp.Header.Get("Retry-After"))
+			resp.Body.Close()
+			if retryAfter <= 0 {
+				// Exponential backoff with cap.
+				retryAfter = ncbiBaseRetryWait * time.Duration(1<<attempt)
+				if retryAfter > ncbiMaxRetryWait {
+					retryAfter = ncbiMaxRetryWait
+				}
+			}
+			if err := sleepWithContext(ctx, retryAfter); err != nil {
+				return nil, fmt.Errorf("rate limit retry canceled: %w", err)
+			}
+
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			defer resp.Body.Close()
+			return nil, fmt.Errorf("NCBI returned HTTP %d for %s", resp.StatusCode, endpoint)
+		}
+
+		// Guard against unbounded reads: read up to MaxBytes+1 to detect oversized responses.
+		r := io.LimitReader(resp.Body, c.MaxBytes+1)
+		body, err := io.ReadAll(r)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("reading response: %w", err)
+		}
+		if int64(len(body)) > c.MaxBytes {
+			return nil, fmt.Errorf("response exceeds maximum size of %d bytes", c.MaxBytes)
+		}
+
+		return body, nil
 	}
 
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("executing request: %w", err)
-	}
-	defer resp.Body.Close()
+	return nil, fmt.Errorf("unreachable request loop")
+}
 
-	if resp.StatusCode == http.StatusTooManyRequests {
-		return nil, fmt.Errorf("NCBI rate limit exceeded (HTTP 429). Consider using an API key with --api-key or NCBI_API_KEY env var")
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("NCBI returned HTTP %d for %s", resp.StatusCode, endpoint)
+func retryAfterDuration(v string) time.Duration {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return 0
 	}
 
-	// Guard against unbounded reads: read up to MaxBytes+1 to detect oversized responses.
-	r := io.LimitReader(resp.Body, c.MaxBytes+1)
-	body, err := io.ReadAll(r)
-	if err != nil {
-		return nil, fmt.Errorf("reading response: %w", err)
-	}
-	if int64(len(body)) > c.MaxBytes {
-		return nil, fmt.Errorf("response exceeds maximum size of %d bytes", c.MaxBytes)
+	if secs, err := strconv.Atoi(v); err == nil {
+		if secs > 0 {
+			return time.Duration(secs) * time.Second
+		}
+		return 0
 	}
 
-	return body, nil
+	if t, err := http.ParseTime(v); err == nil {
+		d := time.Until(t)
+		if d > 0 {
+			return d
+		}
+	}
+
+	return 0
+}
+
+func sleepWithContext(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return nil
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }
