@@ -117,6 +117,54 @@ func buildQuery(args []string) string {
 	return query
 }
 
+func validatePMID(pmid string) error {
+	if pmid == "" {
+		return fmt.Errorf("PMID cannot be empty")
+	}
+
+	for _, r := range pmid {
+		if r < '0' || r > '9' {
+			return fmt.Errorf("PMID %q is invalid: only digits are allowed", pmid)
+		}
+	}
+
+	return nil
+}
+
+func parsePMIDArg(pmidArg string) ([]string, error) {
+	raw := strings.Split(pmidArg, ",")
+	if len(raw) == 0 {
+		return nil, fmt.Errorf("PMID cannot be empty")
+	}
+
+	pmids := make([]string, 0, len(raw))
+	for _, p := range raw {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return nil, fmt.Errorf("PMID cannot be empty")
+		}
+		if err := validatePMID(p); err != nil {
+			return nil, err
+		}
+		pmids = append(pmids, p)
+	}
+
+	return pmids, nil
+}
+
+func normalizePMIDArgs(args []string) ([]string, error) {
+	normalized := make([]string, 0, len(args))
+	for _, arg := range args {
+		parts, err := parsePMIDArg(arg)
+		if err != nil {
+			return nil, err
+		}
+		normalized = append(normalized, parts...)
+	}
+
+	return normalized, nil
+}
+
 // searchCmd implements the search subcommand.
 var searchCmd = &cobra.Command{
 	Use:   "search <query>",
@@ -169,8 +217,12 @@ var fetchCmd = &cobra.Command{
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := newEutilsClient()
+		pmids, err := normalizePMIDArgs(args)
+		if err != nil {
+			return fmt.Errorf("invalid PMID(s): %w", err)
+		}
 
-		articles, err := client.Fetch(cmd.Context(), args)
+		articles, err := client.Fetch(cmd.Context(), pmids)
 		if err != nil {
 			return fmt.Errorf("fetch failed: %w", err)
 		}
@@ -186,6 +238,10 @@ var citedByCmd = &cobra.Command{
 	Long:  `Find papers in PubMed that cite the given article.`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := validatePMID(args[0]); err != nil {
+			return fmt.Errorf("invalid PMID: %w", err)
+		}
+
 		client := newEutilsClient()
 
 		result, err := client.CitedBy(cmd.Context(), args[0])
@@ -204,6 +260,10 @@ var referencesCmd = &cobra.Command{
 	Long:  `List the references cited by the given article.`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := validatePMID(args[0]); err != nil {
+			return fmt.Errorf("invalid PMID: %w", err)
+		}
+
 		client := newEutilsClient()
 
 		result, err := client.References(cmd.Context(), args[0])
@@ -222,6 +282,10 @@ var relatedCmd = &cobra.Command{
 	Long:  `Find articles similar to the given article, ranked by relevance score.`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := validatePMID(args[0]); err != nil {
+			return fmt.Errorf("invalid PMID: %w", err)
+		}
+
 		client := newEutilsClient()
 
 		result, err := client.Related(cmd.Context(), args[0])
