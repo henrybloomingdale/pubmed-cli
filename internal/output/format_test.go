@@ -3,6 +3,8 @@ package output
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -205,6 +207,45 @@ func TestFormatArticleEmpty(t *testing.T) {
 	out := buf.String()
 	if !strings.Contains(out, "No articles") && !strings.Contains(out, "no articles") {
 		t.Errorf("expected 'no articles' message, got %q", out)
+	}
+}
+
+func TestFormatArticles_WithRISAndJSON(t *testing.T) {
+	dir := t.TempDir()
+	risPath := filepath.Join(dir, "articles.ris")
+
+	articles := []eutils.Article{
+		{
+			PMID:             "12345",
+			Title:            "RIS and JSON",
+			Authors:          []eutils.Author{{LastName: "Smith", ForeName: "Jane"}},
+			Journal:          "Test Journal",
+			Year:             "2026",
+			PublicationTypes: []string{"Journal Article"},
+			Language:         "eng",
+		},
+	}
+
+	var buf bytes.Buffer
+	err := FormatArticles(&buf, articles, OutputConfig{JSON: true, RISFile: risPath})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var parsed []map[string]interface{}
+	if err := json.Unmarshal(buf.Bytes(), &parsed); err != nil {
+		t.Fatalf("output is not valid JSON: %v", err)
+	}
+	if len(parsed) != 1 {
+		t.Fatalf("expected 1 JSON article, got %d", len(parsed))
+	}
+
+	risData, err := os.ReadFile(risPath)
+	if err != nil {
+		t.Fatalf("failed reading RIS file: %v", err)
+	}
+	if !strings.Contains(string(risData), "TY  - JOUR") {
+		t.Fatalf("expected RIS record in file, got:\n%s", string(risData))
 	}
 }
 

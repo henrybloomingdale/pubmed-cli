@@ -17,6 +17,7 @@ type OutputConfig struct {
 	Human   bool   // Rich terminal output with color
 	Full    bool   // Show full abstract (human mode)
 	CSVFile string // Export results to this CSV path (works alongside any mode)
+	RISFile string // Export results to this RIS path (works alongside any mode)
 }
 
 // FormatSearchResult writes search results.
@@ -41,6 +42,11 @@ func FormatArticles(w io.Writer, articles []eutils.Article, cfg OutputConfig) er
 	if cfg.CSVFile != "" {
 		if err := writeArticlesCSV(cfg.CSVFile, articles); err != nil {
 			return fmt.Errorf("CSV export failed: %w", err)
+		}
+	}
+	if cfg.RISFile != "" {
+		if err := writeArticlesRIS(cfg.RISFile, articles); err != nil {
+			return fmt.Errorf("RIS export failed: %w", err)
 		}
 	}
 	if cfg.JSON {

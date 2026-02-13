@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -19,6 +20,7 @@ var (
 	flagHuman  bool
 	flagFull   bool
 	flagCSV    string
+	flagRIS    string
 	flagLimit  int
 	flagSort   string
 	flagYear   string
@@ -43,7 +45,7 @@ var rootCmd = &cobra.Command{
 	Short: "PubMed E-utilities CLI",
 	Long:  `A command-line interface for searching and retrieving articles from NCBI PubMed using the E-utilities API.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		return validateGlobalFlags()
+		return validateGlobalFlags(cmd)
 	},
 }
 
@@ -52,6 +54,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&flagHuman, "human", "H", false, "Rich colorful terminal output")
 	rootCmd.PersistentFlags().BoolVar(&flagFull, "full", false, "Show full abstract (with --human)")
 	rootCmd.PersistentFlags().StringVar(&flagCSV, "csv", "", "Export results to CSV file")
+	rootCmd.PersistentFlags().StringVar(&flagRIS, "ris", "", "Export results to RIS file")
 	rootCmd.PersistentFlags().IntVar(&flagLimit, "limit", 20, "Maximum number of results")
 	rootCmd.PersistentFlags().StringVar(&flagSort, "sort", "", "Sort order: relevance, date, or cited")
 	rootCmd.PersistentFlags().StringVar(&flagYear, "year", "", "Filter by year range (e.g., 2020-2025)")
@@ -72,6 +75,7 @@ func outputCfg() output.OutputConfig {
 		Human:   flagHuman,
 		Full:    flagFull,
 		CSVFile: flagCSV,
+		RISFile: flagRIS,
 	}
 }
 
@@ -149,7 +153,7 @@ func parseYearRange(value string) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
-func validateGlobalFlags() error {
+func validateGlobalFlags(cmd *cobra.Command) error {
 	if flagLimit <= 0 {
 		return fmt.Errorf("--limit must be greater than 0")
 	}
@@ -163,6 +167,13 @@ func validateGlobalFlags() error {
 	if flagYear != "" {
 		if _, _, err := parseYearRange(flagYear); err != nil {
 			return fmt.Errorf("--year %q is invalid: %w", flagYear, err)
+		}
+	}
+
+	if flagRIS != "" {
+		switch cmd.Name() {
+		case "search", "mesh":
+			return fmt.Errorf("--ris is not supported for %q; use fetch, cited-by, references, or related", cmd.Name())
 		}
 	}
 
@@ -354,40 +365,63 @@ var relatedCmd = &cobra.Command{
 func formatLinkResults(cmd *cobra.Command, client *eutils.Client, result *eutils.LinkResult, linkType string) error {
 	cfg := outputCfg()
 
-	// For JSON or plain text, just output the links
+	// If RIS export is requested with no links, still create/clear the target file.
+	if len(result.Links) == 0 && cfg.RISFile != "" {
+		if err := output.FormatArticles(io.Discard, []eutils.Article{}, output.OutputConfig{RISFile: cfg.RISFile}); err != nil {
+			return fmt.Errorf("RIS export failed: %w", err)
+		}
+	}
+
+	needsArticles := cfg.Human || cfg.RISFile != ""
+
+	var (
+		articles []eutils.Article
+		limit    int
+		fetchErr error
+	)
+
+	// For human and/or RIS mode, fetch article details for linked IDs.
+	if needsArticles && len(result.Links) > 0 {
+		limit = flagLimit
+		if limit > len(result.Links) {
+			limit = len(result.Links)
+		}
+		pmids := make([]string, limit)
+		for i := 0; i < limit; i++ {
+			pmids[i] = result.Links[i].ID
+		}
+
+		articles, fetchErr = client.Fetch(cmd.Context(), pmids)
+	}
+
+	if cfg.RISFile != "" {
+		if fetchErr != nil {
+			return fmt.Errorf("failed to export RIS: %w", fetchErr)
+		}
+		if err := output.FormatArticles(io.Discard, articles, output.OutputConfig{RISFile: cfg.RISFile}); err != nil {
+			return fmt.Errorf("RIS export failed: %w", err)
+		}
+	}
+
+	// For JSON or plain text, output links after optional RIS export.
 	if cfg.JSON || !cfg.Human {
 		return output.FormatLinks(os.Stdout, result, linkType, cfg)
 	}
 
-	// For human mode, fetch article details to show titles
 	if len(result.Links) == 0 {
 		return output.FormatLinks(os.Stdout, result, linkType, cfg)
 	}
 
-	// Collect PMIDs to fetch (respect limit)
-	limit := flagLimit
-	if limit > len(result.Links) {
-		limit = len(result.Links)
-	}
-	pmids := make([]string, limit)
-	for i := 0; i < limit; i++ {
-		pmids[i] = result.Links[i].ID
-	}
-
-	// Fetch article details
-	articles, err := client.Fetch(cmd.Context(), pmids)
-	if err != nil {
-		// Fall back to PMID-only display if fetch fails
+	if fetchErr != nil {
+		// Fall back to PMID-only display if fetch fails in human mode.
 		return output.FormatLinks(os.Stdout, result, linkType, cfg)
 	}
 
-	// Build a map of PMID -> article for ordering
 	articleMap := make(map[string]eutils.Article)
 	for _, a := range articles {
 		articleMap[a.PMID] = a
 	}
 
-	// Create enriched link result with scores preserved
 	return output.FormatLinksWithArticles(os.Stdout, result, articles, articleMap, linkType, limit)
 }
 

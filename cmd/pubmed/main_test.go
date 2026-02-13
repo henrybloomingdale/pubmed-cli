@@ -3,12 +3,15 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 func resetGlobalFlags() {
 	flagType = ""
 	flagYear = ""
 	flagSort = ""
+	flagRIS = ""
 	flagLimit = 20
 }
 
@@ -137,19 +140,19 @@ func TestParseYearRange(t *testing.T) {
 func TestValidateGlobalFlags(t *testing.T) {
 	resetGlobalFlags()
 	flagLimit = 0
-	if err := validateGlobalFlags(); err == nil {
+	if err := validateGlobalFlags(&cobra.Command{Use: "search"}); err == nil {
 		t.Fatal("expected error for non-positive limit")
 	}
 
 	resetGlobalFlags()
 	flagSort = "newest"
-	if err := validateGlobalFlags(); err == nil {
+	if err := validateGlobalFlags(&cobra.Command{Use: "search"}); err == nil {
 		t.Fatal("expected error for invalid sort")
 	}
 
 	resetGlobalFlags()
 	flagYear = "2025-2020"
-	if err := validateGlobalFlags(); err == nil {
+	if err := validateGlobalFlags(&cobra.Command{Use: "search"}); err == nil {
 		t.Fatal("expected error for descending year range")
 	}
 
@@ -157,8 +160,28 @@ func TestValidateGlobalFlags(t *testing.T) {
 	flagLimit = 5
 	flagSort = "date"
 	flagYear = "2024"
-	if err := validateGlobalFlags(); err != nil {
+	if err := validateGlobalFlags(&cobra.Command{Use: "fetch"}); err != nil {
 		t.Fatalf("unexpected validation error: %v", err)
+	}
+}
+
+func TestValidateGlobalFlags_RISScope(t *testing.T) {
+	resetGlobalFlags()
+	flagRIS = "/tmp/out.ris"
+	if err := validateGlobalFlags(&cobra.Command{Use: "search"}); err == nil {
+		t.Fatal("expected --ris to be rejected for search")
+	}
+
+	resetGlobalFlags()
+	flagRIS = "/tmp/out.ris"
+	if err := validateGlobalFlags(&cobra.Command{Use: "mesh"}); err == nil {
+		t.Fatal("expected --ris to be rejected for mesh")
+	}
+
+	resetGlobalFlags()
+	flagRIS = "/tmp/out.ris"
+	if err := validateGlobalFlags(&cobra.Command{Use: "fetch"}); err != nil {
+		t.Fatalf("expected --ris to be accepted for fetch, got: %v", err)
 	}
 }
 
