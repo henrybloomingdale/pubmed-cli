@@ -13,6 +13,7 @@ It focuses on deterministic, scriptable literature workflows on the `main` branc
 - `references`
 - `related`
 - `mesh`
+- `refcheck`
 
 ## Installation
 
@@ -73,6 +74,11 @@ pubmed related 38000001 --limit 10 --ris related.ris
 
 # MeSH lookup
 pubmed mesh "depression" --json
+
+# Verify document references against PubMed
+pubmed refcheck manuscript.docx --human
+pubmed refcheck manuscript.docx --json
+pubmed refcheck manuscript.docx --audit-text --csv-out report.csv --ris-out verified.ris
 ```
 
 ## Command Behavior
@@ -100,12 +106,15 @@ The CLI now fails fast for common mistakes:
 - Invalid year formats and descending ranges are rejected.
 - Invalid PMIDs (non-digits) are rejected in `fetch`, `cited-by`, `references`, and `related`.
 - `--ris` is supported on `fetch`, `cited-by`, `references`, and `related` (rejected for `search` and `mesh`).
+- `refcheck` validates that the input file exists and that `docx-review` is installed.
 
 ## Production Reliability Notes
 
 - Shared NCBI client with rate limiting and response-size guards.
 - Automatic retry with backoff for transient NCBI `HTTP 429` responses.
 - UTF-8 safe text truncation in human output.
+- Tiered PubMed query strategy for reference verification (PMID → DOI → title → author+year → relaxed).
+- Hallucination detection for potentially fabricated references.
 
 ## Development
 
@@ -135,7 +144,7 @@ Repository metadata:
 
 ## Branching Note
 
-- `main`: non-AI command set listed above.
+- `main`: non-AI command set listed above, including `refcheck` for document reference verification.
 - `ai-features`: historical branch for AI/LLM workflows.
 
 ## License

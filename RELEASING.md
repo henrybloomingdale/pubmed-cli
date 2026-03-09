@@ -32,6 +32,9 @@ Use a freshly built local binary and run at least these commands:
 ./pubmed related 38000001 --limit 2 --human
 ./pubmed related 38000001 --limit 2 --ris /tmp/related.ris
 ./pubmed mesh depression --human
+./pubmed refcheck testdata/fxs_biomarkers_manuscript.docx --human
+./pubmed refcheck testdata/fxs_biomarkers_manuscript.docx --json
+./pubmed refcheck testdata/fxs_biomarkers_manuscript.docx --audit-text --csv-out /tmp/refcheck.csv --ris-out /tmp/refcheck.ris
 ```
 
 Negative-path checks (must fail cleanly, no panics):
@@ -43,6 +46,8 @@ Negative-path checks (must fail cleanly, no panics):
 ./pubmed fetch abc123
 ./pubmed search autism --ris /tmp/search.ris
 ./pubmed mesh depression --ris /tmp/mesh.ris
+./pubmed refcheck nonexistent.docx
+./pubmed refcheck
 ```
 
 ## 3. Documentation Gate
@@ -56,6 +61,7 @@ Update and review:
 - `docs/index.html`
 - `docs/testing-guide.html`
 - `docs/development/TDD.md`
+- `SKILL.md`
 
 Requirements:
 - Command list matches actual `--help` output.

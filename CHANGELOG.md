@@ -4,6 +4,16 @@ All notable changes to pubmed-cli are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- `pubmed refcheck <document.docx>` subcommand for verifying document references against PubMed.
+  - Extracts references from .docx files via docx-review integration.
+  - Tiered PubMed query strategy: PMID → DOI → title → author+year → relaxed search.
+  - Verification statuses: VERIFIED_EXACT, VERIFIED_WITH_CORRECTION, VERIFIED_BY_TITLE, NOT_IN_PUBMED, POSSIBLY_FABRICATED.
+  - Hallucination detection for potentially fabricated references.
+  - In-text citation audit with `--audit-text` flag.
+  - Export options: `--json`, `--human`, `--csv-out FILE`, `--ris-out FILE`.
+- Test manuscript fixture (`testdata/fxs_biomarkers_manuscript.docx`) for refcheck testing.
+
 ## [0.5.4] - 2026-02-15
 
 ### Added

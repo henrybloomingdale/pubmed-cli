@@ -1,6 +1,6 @@
 ---
 name: pubmed-cli
-description: "Search PubMed, fetch article metadata, traverse citation graphs, and look up MeSH terms from the command line. Use when: (1) Searching PubMed with Boolean/MeSH queries, (2) Fetching article details by PMID (abstract, authors, DOI, MeSH terms), (3) Finding papers that cite a given article (cited-by), (4) Finding papers cited by a given article (references), (5) Finding related articles with relevance scores, (6) Looking up MeSH vocabulary (tree numbers, scope notes), (7) Exporting citations in RIS format for Zotero/EndNote, (8) Building reproducible literature review workflows."
+description: "Search PubMed, fetch article metadata, traverse citation graphs, and look up MeSH terms from the command line. Use when: (1) Searching PubMed with Boolean/MeSH queries, (2) Fetching article details by PMID (abstract, authors, DOI, MeSH terms), (3) Finding papers that cite a given article (cited-by), (4) Finding papers cited by a given article (references), (5) Finding related articles with relevance scores, (6) Looking up MeSH vocabulary (tree numbers, scope notes), (7) Exporting citations in RIS format for Zotero/EndNote, (8) Building reproducible literature review workflows, (9) Verifying document references against PubMed for accuracy and detecting fabricated citations."
 metadata: {"nanobot":{"emoji":"🔬","requires":{"bins":["pubmed"]},"install":[{"id":"brew","kind":"brew","formula":"henrybloomingdale/tools/pubmed-cli","bins":["pubmed"],"label":"Install pubmed-cli (brew)"}]}}
 ---
 
@@ -88,6 +88,31 @@ pubmed mesh "autism spectrum disorder" --json
 
 Returns: `ui` (MeSH ID), `name`, `scope_note`, `tree_numbers`, `entry_terms` (synonyms), `annotation`.
 
+### refcheck — Verify document references
+
+```bash
+pubmed refcheck manuscript.docx --json
+pubmed refcheck manuscript.docx --human
+pubmed refcheck manuscript.docx --audit-text --json
+pubmed refcheck manuscript.docx --audit-text --csv-out report.csv --ris-out verified.ris
+```
+
+Requires: [docx-review](https://github.com/drpedapati/docx-review) installed and on PATH.
+
+Extracts references from a .docx document, verifies each against PubMed using a tiered query strategy (PMID → DOI → title → author+year → relaxed), and reports verification status.
+
+Verification statuses:
+- `VERIFIED_EXACT` — reference matches PubMed record exactly
+- `VERIFIED_WITH_CORRECTION` — matched but with metadata differences (wrong DOI, year, pages)
+- `VERIFIED_BY_TITLE` — matched by title but lower confidence
+- `NOT_IN_PUBMED` — no matching PubMed record found
+- `POSSIBLY_FABRICATED` — hallucination signals detected (known author but no matching paper)
+
+Flags:
+- `--audit-text` — audit in-text citations against reference list (finds uncited refs, orphan markers)
+- `--csv-out FILE` — export verification report to CSV
+- `--ris-out FILE` — export verified references as RIS citations
+
 ## Output Formats
 
 | Flag | Format | Use case |
@@ -144,6 +169,20 @@ pubmed related 38000001 --json --limit 20
 
 # Chain: fetch details of citing papers
 pubmed cited-by 38000001 --json | jq -r '.links[].id' | head -5 | xargs pubmed fetch --json
+```
+
+## Workflow: Document Reference Verification
+
+```bash
+# 1. Quick check — see verification summary
+pubmed refcheck paper.docx --human
+
+# 2. Full audit with in-text citation check
+pubmed refcheck paper.docx --audit-text --human
+
+# 3. Export for records
+pubmed refcheck paper.docx --audit-text --json > report.json
+pubmed refcheck paper.docx --csv-out report.csv --ris-out verified.ris
 ```
 
 ## Workflow: MeSH-Guided Search
