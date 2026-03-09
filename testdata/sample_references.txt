@@ -1,0 +1,37 @@
+References
+
+1. Smith JA, Johnson KL, Williams BR, et al. Fragile X syndrome: a review of clinical management. J Med Genet. 2023;60(3):145-158. doi:10.1136/jmg-2022-108796
+
+2. Hagerman RJ, Berry-Kravis E, Hazlett HC, et al. Fragile X syndrome. Nat Rev Dis Primers. 2017;3:17065. doi:10.1038/nrdp.2017.65. PMID: 28960184
+
+3. Kaufmann WE, Kidd SA, Andrews HF, et al. Autism spectrum disorder in fragile X syndrome: cooccurring conditions and current treatment. Pediatrics. 2017;139(Suppl 3):S194-S206. doi:10.1542/peds.2016-1159F. PMID: 28814540
+
+4. Berry-Kravis E, Des Portes V, Bhatt A, et al. Mavoglurant in fragile X syndrome: Results of two randomized, double-blind, placebo-controlled trials. Sci Transl Med. 2016;8(321):321ra5. doi:10.1126/scitranslmed.aab4109
+
+5. Jacquemont S, Curie A, des Portes V, et al. Epigenetic modification of the FMR1 gene in fragile X syndrome is associated with differential response to the mGluR5 antagonist AFQ056. Sci Transl Med. 2011;3(64):64ra1. PMID: 21209411
+
+6. Dolen G, Osterweil E, Rao BS, et al. Correction of fragile X syndrome in mice. Neuron. 2007;56(6):955-962.
+
+7. Bear MF, Huber KM, Warren ST. The mGluR theory of fragile X mental retardation. Trends Neurosci. 2004;27(7):370-377. doi:10.1016/j.tins.2004.04.009
+
+8. Verkerk AJ, Pieretti M, Sutcliffe JS, et al. Identification of a gene (FMR-1) containing a CGG repeat coincident with a breakpoint cluster region exhibiting length variation in fragile X syndrome. Cell. 1991;65(5):905-914. PMID: 1710175
+
+9. Tassone F, Hagerman RJ, Taylor AK, Gane LW, Godfrey TE, Hagerman PJ. Elevated levels of FMR1 mRNA in carrier males: a new mechanism of involvement in the fragile-X syndrome. Am J Hum Genet. 2000;66(1):6-15.
+
+10. Schneider A, Leigh MJ, Adams P, et al. Electrocortical changes associated with minocycline treatment in fragile X syndrome. J Psychopharmacol. 2013;27(10):956-963. doi:10.1177/0269881113494105. PMID: 23981511
+
+11. Erickson CA, Davenport MH, Schaefer TL, et al. Fragile X targeted pharmacotherapy: lessons learned and future directions. J Neurodev Disord. 2017;9:7. doi:10.1186/s11689-017-9186-9
+
+12. Thurman AJ, McDuffie A, Hagerman R, Abbeduto L. Psychiatric symptoms in boys with fragile X syndrome: a comparison with nonsyndromic autism spectrum disorder. Res Dev Disabil. 2014;35(5):1072-1086. doi:10.1016/j.ridd.2014.01.032. PMID: 24559607
+
+13. Crawford DC, Acuna JM, Sherman SL. FMR1 and the fragile X syndrome: human genome epidemiology review. Genet Med. 2001;3(5):359-371. PMID: 11545690
+
+14. Thompson RJ, Nguyen PQ, Williams AR, et al. Novel biomarkers for treatment response monitoring in fragile X syndrome: a multicenter longitudinal study. Mol Psychiatry. 2024;29(4):892-905. doi:10.1038/s41380-024-02445-8
+
+15. Chen WL, Rodriguez SA, Park JH. Machine learning approaches to phenotype classification in neurodevelopmental disorders: implications for fragile X research. J Comput Neurosci. 2025;53(1):34-52. doi:10.1007/s10827-024-00889-3
+
+16. Gross C, Berry-Kravis EM, Bhatt A, et al. Isoform-selective phosphoinositide 3-kinase inhibition ameliorates a broad range of fragile X syndrome-associated deficits in a mouse model. Neuropsychopharmacology. 2019;44(2):324-333. doi:10.1038/s41386-018-0150-5. PMID: 30054583
+
+17. Richter JD, Zhao X. The molecular biology of FMRP: new insights into fragile X syndrome. Nat Rev Neurosci. 2021;22(4):209-222. doi:10.1038/s41583-021-00432-0
+
+18. Kidd SA, Lachiewicz A, Barbouth D, et al. Fragile X syndrome: a review of associated medical problems. Pediatrics. 2014;134(5):995-1005. doi:10.1542/peds.2013-4301. PMID: 25287460

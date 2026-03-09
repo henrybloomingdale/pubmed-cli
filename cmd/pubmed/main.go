@@ -80,6 +80,7 @@ func init() {
 	rootCmd.AddCommand(referencesCmd)
 	rootCmd.AddCommand(relatedCmd)
 	rootCmd.AddCommand(meshCmd)
+	rootCmd.AddCommand(refcheckCmd)
 	rootCmd.AddCommand(versionCmd)
 }
 
